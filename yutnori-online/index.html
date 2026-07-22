@@ -809,6 +809,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
 
     <div class="teamPick">
+      <button class="miniBtn" id="copyLinkBtn" style="margin-bottom:12px">🔗 초대 링크 복사</button>
       <button type="button" class="teamBox joinTeam" id="teamBox0" data-team="0">
         <span class="tHead">🐢 파란팀 <span class="cnt" id="cnt0"></span></span>
         <span class="pList" id="pList0"></span>
@@ -828,6 +829,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
         <label>말 개수
           <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
         </label>
+        <label><input type="checkbox" id="roomPrivate"> 🔒 <b>목록에 숨기기</b> — 링크를 아는 사람만</label>
         <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가</b> — 혼자여도 시작</label>
         <label>컴퓨터 실력
           <select id="aiLevel"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select>
@@ -861,7 +863,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
   </div>
 
   <div id="boardWrap">
-    <canvas id="board" width="620" height="620"></canvas>
+    <canvas id="board" width="620" height="620" role="img" aria-label="윷놀이 말판"></canvas>
     <div id="throwOverlay">
       <canvas id="stickCv" width="560" height="430"></canvas>
       <div id="throwResult"></div>
@@ -1024,6 +1026,20 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
     <button id="soloGo" class="primaryBtn solo">시작하기 🎯</button>
     <button id="soloClose" class="ghostBtn">닫기</button>
+  </div>
+</div>
+
+<!-- ---------- 사람 관리 ---------- -->
+<div class="fullOverlay" id="peopleDlg" style="display:none">
+  <div class="dialog" style="max-width:380px">
+    <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:4px">
+      <span id="pplAv" style="display:flex"></span>
+      <h2 id="pplName" style="font-size:22px">놀이꾼</h2>
+    </div>
+    <div class="hint" id="pplHint"></div>
+    <button id="pplMute" class="primaryBtn alt" style="margin-top:16px">🔇 이 사람 차단하기</button>
+    <button id="pplKick" class="primaryBtn" style="margin-top:10px;background:linear-gradient(165deg,#FF7C8C,#C41F3C);box-shadow:0 4px 0 #8E1129">🚫 방에서 내보내기</button>
+    <button id="pplClose" class="ghostBtn">닫기</button>
   </div>
 </div>
 
@@ -1398,14 +1414,21 @@ function primeTTS(){
   if(!TTS)return;
   try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.lang='ko-KR';TTS.speak(u);}catch(e){}
 }
+let voiceNoticed=false;
+function noticeNoVoice(){
+  if(voiceNoticed||localStorage.getItem('yut_novoice')==='1')return;
+  voiceNoticed=true;localStorage.setItem('yut_novoice','1');
+  setTimeout(()=>miniToast('🔈 이 기기에는 한국어 음성이 없어 효과음만 나와요'),800);
+}
 function playVoice(text,opt){
   if(!soundOn||!text)return;
   const key=(opt&&opt.key)||text;
   if(VOICE[key]){
     try{const a=new Audio(VOICE[key]);a.volume=1;duck(1.5);a.play().catch(()=>{});return;}catch(e){}
   }
-  if(!TTS)return;
+  if(!TTS){noticeNoVoice();return;}
   if(!koVoice)pickKoVoice();
+  if(!koVoice)noticeNoVoice();
   try{
     if(TTS.speaking||TTS.pending)TTS.cancel();
     const u=new SpeechSynthesisUtterance(text);
@@ -2362,7 +2385,12 @@ function drawPiece(c,x,y,color,deep,count,icon){
   }
   c.restore();
 }
-(function loop(now){drawBoard(now||0);requestAnimationFrame(loop);})();
+(function loop(now){
+  // 말판이 화면에 없으면 그리지 않는다 (로비에서 배터리를 아낀다)
+  const on=!$('gamePanel').classList.contains('hidden')&&!document.hidden;
+  if(on)drawBoard(now||0);
+  requestAnimationFrame(loop);
+})();
 
 /* ================= 로비 히어로: 윷가락 ================= */
 (function heroSticks(){
@@ -2467,6 +2495,11 @@ function updateUI(){
   wasMyTurn=mine;
   const ai=aiTurn();
   $('turnName').textContent=T.name+' · '+cName+(mine?' (나)':'');
+  // 말판을 볼 수 없는 분을 위한 글 설명
+  bd.setAttribute('aria-label',
+    '윷놀이 말판. '+S.teams.map((t,i)=>t.name+' 완주 '+t.pieces.filter(p=>p.done).length+
+      '개, 판 위 '+t.pieces.filter(p=>typeof p.node==='number').length+'개').join(', ')+
+    '. 지금은 '+T.name+' '+cName+' 차례.');
   $('turnStatus').textContent=
     S.winner!==null?'놀이가 끝났어요!':
     S.busy?'윷이 날아가요…':
@@ -2542,6 +2575,8 @@ function updateUI(){
       const nm=document.createElement('span');
       nm.textContent=pp.name+(pp.uid===myUid?' (나)':'');
       s.appendChild(nm);
+      if(pp.uid!==myUid&&pp.uid!==AI_UID){s.style.cursor='pointer';
+        s.onclick=()=>openPeople(pp.uid);}
       pl.appendChild(s);
     });
     const wait=card.querySelector('.wait');wait.innerHTML='';
@@ -2858,6 +2893,44 @@ async function hostSkip(auto){
 }
 $('skipBtn').addEventListener('click',()=>hostSkip(false));
 
+/* ================= 사람 관리 (내보내기 · 차단) ================= */
+/* 차단은 내 화면에만 적용된다 — 서버에 알리지 않으므로 상대는 알 수 없다. */
+let muted=new Set(JSON.parse(localStorage.getItem('yut_mute')||'[]'));
+function isMuted(uid){return muted.has(uid);}
+function saveMuted(){localStorage.setItem('yut_mute',JSON.stringify([...muted]));}
+let pplTarget=null;
+function openPeople(uid){
+  if(!uid||uid===myUid||uid===AI_UID)return;
+  pplTarget=uid;
+  setAvatarInto($('pplAv'),uid,52);
+  $('pplName').textContent=(pMap[uid]&&pMap[uid].name)||'놀이꾼';
+  const host=room&&room.host===myUid;
+  $('pplKick').style.display=(host&&!spectating)?'':'none';
+  $('pplMute').textContent=isMuted(uid)?'🔊 차단 풀기':'🔇 이 사람 차단하기';
+  $('pplHint').textContent=isMuted(uid)
+    ?'지금은 이 사람의 대화와 표현이 보이지 않아요.'
+    :'차단하면 이 사람의 대화와 표현이 내 화면에만 안 보여요.';
+  $('peopleDlg').style.display='flex';
+}
+$('pplClose').addEventListener('click',()=>{$('peopleDlg').style.display='none';});
+$('pplMute').addEventListener('click',()=>{
+  if(!pplTarget)return;
+  if(muted.has(pplTarget)){muted.delete(pplTarget);miniToast('🔊 차단을 풀었어요');}
+  else{muted.add(pplTarget);miniToast('🔇 차단했어요');}
+  saveMuted();renderChat();
+  $('peopleDlg').style.display='none';
+});
+$('pplKick').addEventListener('click',async()=>{
+  if(!pplTarget||!room)return;
+  const nm=(pMap[pplTarget]&&pMap[pplTarget].name)||'이 사람';
+  if(!confirm(nm+' 님을 방에서 내보낼까요?'))return;
+  const uid=pplTarget;
+  $('peopleDlg').style.display='none';
+  const {error}=await sb.rpc('kick_player',{p_room_id:room.id,p_uid:uid});
+  if(error)miniToast('⚠️ '+errMsg(error));
+  else{miniToast('🚫 '+nm+' 님을 내보냈어요');refreshPlayers();}
+});
+
 /* ================= 게임 중 감정 표현 ================= */
 /* 화면에 잠깐 떴다 사라지는 표현이라 서버에 저장하지 않고 바로 전해 준다.
    말판을 가리지 않도록 보내는 쪽·받는 쪽·화면 세 군데에서 양을 제한한다. */
@@ -2910,7 +2983,7 @@ function sendEmo(e){
 }
 /* 남이 보낸 표현 — 상대가 도배해도 내 화면은 지켜 준다 */
 function onEmo(uid,e){
-  if(!uid||!e||uid===myUid)return;
+  if(!uid||!e||uid===myUid||isMuted(uid))return;
   const now=Date.now();
   if(emoLastFrom[uid]&&now-emoLastFrom[uid]<1200)return;
   emoLastFrom[uid]=now;
@@ -2964,10 +3037,12 @@ function renderChat(){
     e.className='empty';e.textContent='첫 인사를 건네 보세요 👋';
     list.appendChild(e);return;
   }
-  chatMsgs.forEach(m=>{
+  chatMsgs.filter(m=>!isMuted(m.user_id)).forEach(m=>{
     const row=document.createElement('div');
     row.className='msg'+(m.user_id===myUid?' mine':'');
-    row.appendChild(avatarEl(m.user_id,30));
+    const av=avatarEl(m.user_id,30);
+    if(m.user_id!==myUid){av.style.cursor='pointer';av.onclick=()=>openPeople(m.user_id);}
+    row.appendChild(av);
     const bub=document.createElement('div');bub.className='bubble';
     const who=document.createElement('div');who.className='who';who.textContent=m.nickname;
     const body=document.createElement('div');body.className='body';body.textContent=m.text;
@@ -2982,6 +3057,7 @@ function addChat(m){
   chatMsgs.push(m);
   if(chatMsgs.length>100)chatMsgs.shift();
   renderChat();
+  if(isMuted(m.user_id))return;
   if(!chatOpen&&m.user_id!==myUid){
     unread++;updateChatBadge();sfx.chat();
     miniToast('💬 '+m.nickname+': '+(m.text.length>18?m.text.slice(0,18)+'…':m.text));
@@ -3157,6 +3233,8 @@ function renderRoom(){
       const nm=document.createElement('span');
       nm.textContent=p.nickname+(p.user_id===room.host?' 👑':'')+(p.user_id===myUid?' (나)':'');
       s.appendChild(nm);
+      if(p.user_id!==myUid){s.style.cursor='pointer';s.title='눌러서 관리';
+        s.onclick=ev=>{ev.stopPropagation();openPeople(p.user_id);};}
       box.appendChild(s);
     });
     if(!mem.length){
@@ -3176,6 +3254,7 @@ function renderRoom(){
 
   const wn=watcherRows().length;
   $('rWatch').textContent=wn?'👀 관전 '+wn+'명':'';
+  $('roomPrivate').checked=room.private===true;
   $('hostOpts').style.display=isHost?'':'none';
   $('wStartBtn').style.display=isHost?'':'none';
   const withAI=aiFill&&(cnt[0]===0||cnt[1]===0);
@@ -3188,6 +3267,20 @@ function renderRoom(){
     :'방장이 시작하길 기다리는 중…';
 }
 $('aiFill').addEventListener('change',renderRoom);
+$('roomPrivate').addEventListener('change',async()=>{
+  if(!room||room.host!==myUid)return;
+  const on=$('roomPrivate').checked;
+  const {error}=await sb.rpc('set_room_private',{p_room_id:room.id,p_private:on});
+  if(error){miniToast('⚠️ '+errMsg(error));$('roomPrivate').checked=!on;return;}
+  room.private=on;
+  miniToast(on?'🔒 목록에서 숨겼어요 — 링크로만 들어올 수 있어요':'🔓 목록에 다시 보여요');
+});
+$('copyLinkBtn').addEventListener('click',async()=>{
+  if(!room)return;
+  const link=location.origin+location.pathname+'?join='+room.code;
+  try{await navigator.clipboard.writeText(link);miniToast('🔗 초대 링크를 복사했어요');}
+  catch(e){prompt('아래 링크를 복사해 주세요',link);}
+});
 
 /* 팀 고르기 — 관전 중이었다면 먼저 방에 참가시킨다 */
 async function pickTeam(ti){
@@ -3339,7 +3432,7 @@ async function refreshOpenRooms(){
   await maybeCleanup();
   const {data}=await sb.from('rooms').select('id,code,host,status,created_at')
     .order('created_at',{ascending:false}).limit(20);
-  roomsCache=data||[];
+  roomsCache=(data||[]).filter(r=>r.private!==true);
   const box=$('openRooms');
   $('roomCount').textContent=roomsCache.length?roomsCache.length+'개':'';
   $('liveRooms').textContent=roomsCache.length;
@@ -3696,6 +3789,21 @@ $('createBtn').addEventListener('click',async()=>{
   }catch(e){lobbyErr('⚠️ '+errMsg(e));}
   $('createBtn').disabled=false;
 });
+
+/* ---------- 문제가 생기면 알려 주기 ----------
+   조용히 실패하면 원인을 찾을 길이 없다. 화면에 알리고 마지막 오류를 남겨 둔다. */
+let lastErrAt=0;
+function reportError(what,err){
+  const msg=(err&&(err.stack||err.message))||String(err||what);
+  console.error(what,err);
+  try{localStorage.setItem('yut_lasterr',new Date().toISOString()+'\n'+what+'\n'+msg.slice(0,800));}catch(e){}
+  const now=Date.now();
+  if(now-lastErrAt<10000)return;      // 줄줄이 뜨지 않게
+  lastErrAt=now;
+  miniToast('⚠️ 문제가 생겼어요 — 계속되면 새로고침해 주세요');
+}
+addEventListener('error',e=>reportError('오류',e.error||e.message));
+addEventListener('unhandledrejection',e=>reportError('처리되지 않은 오류',e.reason));
 
 /* ---------- 오프라인 모드 ----------
    인터넷이 없을 때도 화면을 열어 '혼자 연습'은 할 수 있게 한다. */

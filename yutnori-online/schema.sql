@@ -4,6 +4,10 @@
 -- 여러 번 실행해도 안전합니다. (기능 추가 후 다시 실행해도 됩니다)
 -- ============================================================
 
+-- 중간에 실패해도 반만 반영되지 않도록 전체를 한 덩어리로 묶는다.
+-- 오류가 나면 아무것도 바뀌지 않으니, 메시지를 그대로 알려 주세요.
+begin;
+
 create extension if not exists pgcrypto;
 
 -- ---------- 프로필 (이름 · 프로필 사진) ----------
@@ -37,6 +41,8 @@ create table if not exists public.players (
 );
 -- 같은 방에서 여러 판 놀 때의 전적 { "사용자id": 이긴횟수 }
 alter table public.rooms add column if not exists score jsonb not null default '{}'::jsonb;
+-- 목록에 숨기고 링크로만 들어오게 하는 방
+alter table public.rooms add column if not exists private boolean not null default false;
 alter table public.players add column if not exists avatar text;
 -- role: player(놀이 참가) | spectator(관전). 관전자도 기록해야 대화를 볼 수 있다.
 alter table public.players add column if not exists role text not null default 'player';
@@ -447,10 +453,10 @@ begin
      and id <= (select max(id) - 100 from messages where room_id = p_room_id);
 end $$;
 
--- ---------- 방 나가기 ----------
+-- ---------- 참가자 한 명을 방에서 빼기 (나가기 · 강퇴 공용) ----------
 -- 게임 중에 나가면: 그 팀에 아무도 안 남으면 상대 팀 승리로 종료,
 --                  한 명이라도 남아 있으면 (2:1 처럼) 계속 진행.
-create or replace function public.leave_room(p_room_id uuid)
+create or replace function public._remove_player(p_room_id uuid, p_uid uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   r       rooms%rowtype;
@@ -468,23 +474,23 @@ begin
   if not found then return; end if;
 
   select nickname, role into v_nick, v_role from players
-   where room_id = p_room_id and user_id = auth.uid();
+   where room_id = p_room_id and user_id = p_uid;
   if v_nick is null then return; end if;
 
   -- 관전자는 게임에 끼어 있지 않으므로 자기 기록만 지운다
   if v_role = 'spectator' then
-    delete from players where room_id = p_room_id and user_id = auth.uid();
+    delete from players where room_id = p_room_id and user_id = p_uid;
     update rooms set updated_at = now() where id = p_room_id;
     return;
   end if;
 
   -- 대기 중: 방장이 나가면 방 자체를 닫음
   if r.status = 'waiting' then
-    if r.host = auth.uid() then
+    if r.host = p_uid then
       delete from rooms where id = p_room_id;
       return;
     end if;
-    delete from players where room_id = p_room_id and user_id = auth.uid();
+    delete from players where room_id = p_room_id and user_id = p_uid;
     if not exists (select 1 from players where room_id = p_room_id and role = 'player') then
       delete from rooms where id = p_room_id;
     end if;
@@ -494,12 +500,12 @@ begin
   -- 진행 중: 게임 상태에서 나간 사람을 빼고 승패/차례를 정리
   st := r.game_state;
   if r.status = 'playing' and st is not null then
-    was_turn := (_thrower(st) = auth.uid());
+    was_turn := (_thrower(st) = p_uid);
 
     for ti in 0..1 loop
       select coalesce(jsonb_agg(e.v), '[]'::jsonb) into arr
         from jsonb_array_elements(st->'teams'->ti->'players') as e(v)
-       where e.v->>'uid' <> auth.uid()::text;
+       where e.v->>'uid' <> p_uid::text;
       st := jsonb_set(st, array['teams', ti::text, 'players'], arr);
     end loop;
 
@@ -508,7 +514,7 @@ begin
 
     st := jsonb_set(st, '{ver}', to_jsonb(coalesce((st->>'ver')::int, 1) + 1));
     st := jsonb_set(st, '{ev}', jsonb_build_object(
-            'type','leave','by',auth.uid(),'name',v_nick,
+            'type','leave','by',p_uid,'name',v_nick,
             'ended', (n0 = 0 or n1 = 0)));
 
     if n0 = 0 or n1 = 0 then
@@ -536,10 +542,10 @@ begin
     end if;
   end if;
 
-  delete from players where room_id = p_room_id and user_id = auth.uid();
+  delete from players where room_id = p_room_id and user_id = p_uid;
 
   -- 방장이 나갔으면 남은 사람 중 가장 먼저 들어온 사람이 방장을 이어받음
-  if r.host = auth.uid() then
+  if r.host = p_uid then
     select user_id into v_host from players
      where room_id = p_room_id and role = 'player' order by joined_at limit 1;
     if v_host is not null then
@@ -550,6 +556,35 @@ begin
   if not exists (select 1 from players where room_id = p_room_id and role = 'player') then
     delete from rooms where id = p_room_id;
   end if;
+end $$;
+
+-- ---------- 방 나가기 ----------
+create or replace function public.leave_room(p_room_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return; end if;
+  perform _remove_player(p_room_id, auth.uid());
+end $$;
+
+-- ---------- 내보내기 (방장 전용) ----------
+-- 모르는 사람이 들어왔을 때 방장이 내보낼 수 있어야 한다.
+create or replace function public.kick_player(p_room_id uuid, p_uid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare r rooms%rowtype;
+begin
+  select * into r from rooms where id = p_room_id;
+  if not found then raise exception '방을 찾을 수 없어요'; end if;
+  if r.host <> auth.uid() then raise exception '방장만 내보낼 수 있어요'; end if;
+  if p_uid = auth.uid() then raise exception '자기 자신은 내보낼 수 없어요'; end if;
+  perform _remove_player(p_room_id, p_uid);
+end $$;
+
+-- ---------- 방을 목록에서 숨기기 (방장 전용) ----------
+create or replace function public.set_room_private(p_room_id uuid, p_private boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update rooms set private = coalesce(p_private,false), updated_at = now()
+   where id = p_room_id and host = auth.uid();
 end $$;
 
 -- ---------- 함수 실행 권한: 로그인(익명 포함) 사용자만 ----------
@@ -567,7 +602,9 @@ grant execute on function
   public.reopen_room(uuid),
   public.cleanup_rooms(),
   public.send_message(uuid, text),
-  public.leave_room(uuid)
+  public.leave_room(uuid),
+  public.kick_player(uuid, uuid),
+  public.set_room_private(uuid, boolean)
 to authenticated;
 
 -- ============================================================
@@ -583,3 +620,5 @@ begin
 exception when others then
   raise notice 'pg_cron 예약을 건너뜁니다 (%). 로비 접속 시 청소는 정상 동작합니다.', sqlerrm;
 end $$;
+
+commit;
