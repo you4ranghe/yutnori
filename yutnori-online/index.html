@@ -74,6 +74,7 @@ body{
   font-size:16px;line-height:1.5;
   touch-action:manipulation;
   min-height:100dvh;
+  word-break:keep-all;overflow-wrap:break-word;
   background-color:var(--bg);
   /* 말판의 '밭'을 옮겨온 점 패턴 */
   background-image:
@@ -617,21 +618,30 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 #emoBar.cool #emoCool{opacity:1;animation:emoCool var(--cool,2s) linear forwards}
 @keyframes emoCool{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 
-.emoFly{
-  position:fixed;left:50%;bottom:150px;z-index:62;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  animation:emoUp 2.6s cubic-bezier(.2,.7,.3,1) forwards;
+/* 팝콘처럼 서너 알이 튀어 올라 흩어진다 */
+.emoPop{
+  position:fixed;left:50%;bottom:145px;z-index:62;pointer-events:none;
+  font-size:var(--sz,36px);line-height:1;opacity:0;
+  filter:drop-shadow(0 5px 12px rgba(21,24,48,.38));
+  animation:emoPop var(--dur,2.1s) cubic-bezier(.12,.72,.3,1) var(--delay,0s) forwards;
 }
-.emoFly .e{font-size:44px;line-height:1;filter:drop-shadow(0 5px 12px rgba(21,24,48,.4))}
-.emoFly .n{
-  font-size:11px;font-weight:800;color:#fff;background:rgba(21,24,48,.78);
-  border-radius:999px;padding:2px 9px;white-space:nowrap;
+@keyframes emoPop{
+  0%  {opacity:0;transform:translate(calc(-50% + var(--x0)),16px) scale(.25) rotate(0deg)}
+  18% {opacity:1;transform:translate(calc(-50% + var(--x1)),var(--peak,-120px)) scale(1.12) rotate(var(--rot,12deg))}
+  30% {opacity:1;transform:translate(calc(-50% + var(--x1)),calc(var(--peak,-120px) + 14px)) scale(1)}
+  100%{opacity:0;transform:translate(calc(-50% + var(--x2)),-42vh) scale(.82) rotate(calc(var(--rot,12deg) * 2.4))}
 }
-@keyframes emoUp{
-  0%  {opacity:0;transform:translate(calc(-50% + var(--x0)),24px) scale(.4)}
-  14% {opacity:1;transform:translate(calc(-50% + var(--x0)),0) scale(1.15)}
-  24% {opacity:1;transform:translate(calc(-50% + var(--x0)),-12px) scale(1)}
-  100%{opacity:0;transform:translate(calc(-50% + var(--x1)),-44vh) scale(.9)}
+.emoName{
+  position:fixed;left:50%;bottom:118px;z-index:62;pointer-events:none;
+  font-size:11.5px;font-weight:800;color:#fff;background:rgba(21,24,48,.8);
+  border-radius:999px;padding:3px 10px;white-space:nowrap;opacity:0;
+  animation:emoName 1.9s ease forwards;
+}
+@keyframes emoName{
+  0%  {opacity:0;transform:translate(-50%,10px)}
+  16% {opacity:1;transform:translate(-50%,0)}
+  70% {opacity:1;transform:translate(-50%,-22px)}
+  100%{opacity:0;transform:translate(-50%,-46px)}
 }
 
 /* ---------- 효과 ---------- */
@@ -780,7 +790,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
         <h2>던지고 달리고<br>잡는다</h2>
         <div id="liveStrip">
           <span class="livePill"><span class="dot"></span><span id="liveOn">1</span>명</span>
-          <span class="livePill">🚪 <span id="liveRooms">0</span>개 방</span>
+          <span class="livePill">🎲 <span id="liveRooms">0</span>개 방</span>
         </div>
       </div>
     </div>
@@ -790,7 +800,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
   </section>
 
-  <div class="secTitle">🚪 놀이방 <span class="cnt" id="roomCount"></span>
+  <div class="secTitle">🎲 놀이방 <span class="cnt" id="roomCount"></span>
     <button id="refreshBtn" aria-label="새로고침">🔄</button>
   </div>
   <div id="openRooms"></div>
@@ -841,7 +851,6 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
         <div class="rSub" id="rSub">🌐 로비에 공개 중<span id="rWatch"></span></div>
       </div>
       <button class="iconBtn" id="copyLinkBtn" title="초대 링크 복사" aria-label="초대 링크 복사">🔗</button>
-      <button class="iconBtn" id="leaveBtn" title="방 나가기" aria-label="방 나가기">🚪</button>
     </div>
 
     <div class="teamPick">
@@ -876,8 +885,8 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       </div>
       <div class="setChips">
         <label class="chipTog"><input type="checkbox" id="backdoOpt" checked><span>빽도</span></label>
-        <label class="chipTog"><input type="checkbox" id="specialOpt" checked><span>특별칸 😇👿🤰</span></label>
-        <label class="chipTog"><input type="checkbox" id="aiFill" checked><span>🤖 컴퓨터 채우기</span></label>
+        <label class="chipTog"><input type="checkbox" id="specialOpt" checked><span>특별칸 😇천국·👿지옥·🤰잉태</span></label>
+        <label class="chipTog"><input type="checkbox" id="aiFill" checked><span>🤖 빈 팀은 컴퓨터가</span></label>
         <label class="chipTog"><input type="checkbox" id="roomPrivate"><span>🔒 우리끼리만</span></label>
       </div>
     </details>
@@ -3001,7 +3010,7 @@ function canSendEmo(){
   return true;
 }
 function sendEmo(e){
-  if(!e)return;
+  if(!e||!room||solo||!S)return;   // 놀이 중에만
   if(!canSendEmo()){
     const wait=Math.max(0,emoLockUntil-Date.now());
     if(wait>0){miniToast('🙂 잠시만요 — '+Math.ceil(wait/1000)+'초 뒤에 다시 보낼 수 있어요');emoCooldown(wait);}
@@ -3025,19 +3034,33 @@ function onEmo(uid,e){
   flyEmo(uid,e);
 }
 function flyEmo(uid,e){
-  if(document.querySelectorAll('.emoFly').length>=EMO_MAX_ON)return;
-  const d=document.createElement('div');
-  d.className='emoFly';
-  const x0=(Math.random()*180-90)|0, x1=x0+((Math.random()*120-60)|0);
-  d.style.setProperty('--x0',x0+'px');
-  d.style.setProperty('--x1',x1+'px');
-  const em=document.createElement('div');em.className='e';em.textContent=e;
-  const nm=document.createElement('div');nm.className='n';
+  const layer=$('fxLayer');
+  if(layer.querySelectorAll('.emoPop').length>=EMO_MAX_ON*4)return;
+  const n=3+((Math.random()*2)|0);            // 3~4 알
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');
+    d.className='emoPop';
+    const x0=rnd(-24,24), x1=x0+rnd(-110,110), x2=x1+rnd(-70,70);
+    d.style.setProperty('--x0',x0.toFixed(0)+'px');
+    d.style.setProperty('--x1',x1.toFixed(0)+'px');
+    d.style.setProperty('--x2',x2.toFixed(0)+'px');
+    d.style.setProperty('--peak',rnd(-160,-90).toFixed(0)+'px');
+    d.style.setProperty('--rot',rnd(-40,40).toFixed(0)+'deg');
+    d.style.setProperty('--sz',rnd(28,44).toFixed(0)+'px');
+    d.style.setProperty('--dur',rnd(1.8,2.4).toFixed(2)+'s');
+    d.style.setProperty('--delay',(i*rnd(40,90)).toFixed(0)+'ms');
+    d.textContent=e;
+    layer.appendChild(d);
+    setTimeout(()=>d.remove(),3000);
+  }
+  const nm=document.createElement('div');
+  nm.className='emoName';
   nm.textContent=((pMap[uid]&&pMap[uid].name)||'놀이꾼')+(uid===myUid?' (나)':'');
-  d.appendChild(em);d.appendChild(nm);
-  $('fxLayer').appendChild(d);
-  setTimeout(()=>d.remove(),2700);
-  tone(660+Math.random()*220,0.07,'sine',0.08);
+  layer.appendChild(nm);
+  setTimeout(()=>nm.remove(),2000);
+  // 튀는 느낌을 소리로도 — 알마다 살짝 어긋나게
+  for(let i=0;i<n;i++)tone(620+Math.random()*260,0.06,'sine',0.06,i*0.055);
 }
 $('emoBtn').addEventListener('click',()=>emoOpen());
 document.querySelectorAll('.emo').forEach(b=>
@@ -3131,6 +3154,7 @@ function showApp(){
 }
 function showGameScreen(){
   showApp();
+  $('emoBtn').style.display=(room&&!solo)?'':'none';
   bgmSetMood('game');
   if(soundOn&&BGM.on)bgmStart();
   $('roomPanel').classList.add('hidden');
@@ -3139,12 +3163,16 @@ function showGameScreen(){
 }
 function showRoomPanel(){
   showApp();
+  $('emoBtn').style.display='none';
+  $('emoBar').classList.remove('on');
   bgmSetMood('lobby');
   $('gamePanel').classList.add('hidden');
   $('roomPanel').classList.remove('hidden');
   $('actionBar').classList.add('hidden');
 }
 function showLobbyScreen(){
+  $('emoBtn').style.display='none';
+  $('emoBar').classList.remove('on');
   bgmSetMood('lobby');
   $('boot').style.display='none';
   $('app').classList.add('hidden');
@@ -3223,7 +3251,6 @@ async function enterRoom(row,spectate){
   showGameScreen();
   $('roomAlert').classList.remove('on');
   $('chatBtn').style.display='';
-  $('emoBtn').style.display='';
   $('modeSub').innerHTML=spectate?'👀 관전 중':'🎮 함께 놀이 중';
   unread=0;updateChatBadge();
   trackPresence(spectate?'관전 중':'놀이 중');
@@ -3320,7 +3347,7 @@ $('roomPrivate').addEventListener('change',async()=>{
   if(error){miniToast('⚠️ '+errMsg(error));$('roomPrivate').checked=!on;return;}
   room.private=on;
   renderRoom();
-  miniToast(on?'🔒 이제 링크를 받은 사람만 들어올 수 있어요':'🔓 이제 로비 목록에서 누구나 볼 수 있어요');
+  miniToast(on?'🔒 링크를 받은 사람만 들어와요':'🔓 로비 목록에 다시 보여요');
 });
 $('copyLinkBtn').addEventListener('click',async()=>{
   if(!room)return;
@@ -3392,7 +3419,6 @@ async function leaveRoom(){
   localStorage.removeItem('yut_room');
   location.href=location.pathname;
 }
-$('leaveBtn').addEventListener('click',leaveRoom);
 $('winLeaveBtn').addEventListener('click',leaveRoom);
 $('exitBtn').addEventListener('click',()=>{
   const msg=solo?'연습을 그만할까요?'
