@@ -1,12 +1,20 @@
 -- ============================================================
 -- 윷놀이 온라인 - Supabase 스키마
 -- Supabase 대시보드 > SQL Editor 에 이 파일 전체를 붙여넣고 Run 하세요.
--- 여러 번 실행해도 안전합니다.
+-- 여러 번 실행해도 안전합니다. (기능 추가 후 다시 실행해도 됩니다)
 -- ============================================================
 
 create extension if not exists pgcrypto;
 
--- ---------- 테이블 ----------
+-- ---------- 프로필 (이름 · 프로필 사진) ----------
+create table if not exists public.profiles (
+  id         uuid primary key references auth.users(id) on delete cascade,
+  nickname   text not null default '',
+  avatar     text,                               -- 작은 정사각 이미지(data URI, 약 10KB)
+  updated_at timestamptz not null default now()
+);
+
+-- ---------- 방 ----------
 create table if not exists public.rooms (
   id          uuid primary key default gen_random_uuid(),
   code        text unique not null,
@@ -17,6 +25,7 @@ create table if not exists public.rooms (
   updated_at  timestamptz not null default now()
 );
 
+-- ---------- 참가자 ----------
 create table if not exists public.players (
   id         uuid primary key default gen_random_uuid(),
   room_id    uuid not null references public.rooms(id) on delete cascade,
@@ -26,27 +35,40 @@ create table if not exists public.players (
   joined_at  timestamptz not null default now(),
   unique (room_id, user_id)
 );
+alter table public.players add column if not exists avatar text;
+
+-- ---------- 채팅 ----------
+create table if not exists public.messages (
+  id         bigserial primary key,
+  room_id    uuid not null references public.rooms(id) on delete cascade,
+  user_id    uuid not null,
+  nickname   text not null,
+  text       text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists messages_room_idx on public.messages (room_id, id);
 
 -- ---------- RLS: 읽기는 로그인(익명 포함) 사용자 누구나, 쓰기는 RPC 함수로만 ----------
-alter table public.rooms   enable row level security;
-alter table public.players enable row level security;
+alter table public.profiles enable row level security;
+alter table public.rooms    enable row level security;
+alter table public.players  enable row level security;
+alter table public.messages enable row level security;
 
-drop policy if exists rooms_select   on public.rooms;
-create policy rooms_select   on public.rooms   for select to authenticated using (true);
-drop policy if exists players_select on public.players;
-create policy players_select on public.players for select to authenticated using (true);
+drop policy if exists profiles_select on public.profiles;
+create policy profiles_select on public.profiles for select to authenticated using (true);
+drop policy if exists rooms_select    on public.rooms;
+create policy rooms_select    on public.rooms    for select to authenticated using (true);
+drop policy if exists players_select  on public.players;
+create policy players_select  on public.players  for select to authenticated using (true);
+drop policy if exists messages_select on public.messages;
+create policy messages_select on public.messages for select to authenticated using (true);
 
--- ---------- Realtime 발행 (변경 사항을 클라이언트에 실시간 전송) ----------
+-- ---------- Realtime 발행 ----------
 do $$
 begin
-  begin
-    alter publication supabase_realtime add table public.rooms;
-  exception when duplicate_object then null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.players;
-  exception when duplicate_object then null;
-  end;
+  begin alter publication supabase_realtime add table public.rooms;    exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.players;  exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.messages; exception when duplicate_object then null; end;
 end $$;
 
 -- ---------- 헬퍼: 현재 차례인 플레이어의 uid ----------
@@ -66,17 +88,42 @@ language sql security definer set search_path = public as $$
       or (status = 'finished' and updated_at < now() - interval '1 hour');
 $$;
 
+-- ---------- 프로필 저장 ----------
+create or replace function public.save_profile(p_nickname text, p_avatar text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_nick text;
+begin
+  if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+  v_nick := left(trim(coalesce(p_nickname,'')), 10);
+  if v_nick = '' then raise exception '이름을 입력해 주세요'; end if;
+  if p_avatar is not null and length(p_avatar) > 300000 then
+    raise exception '사진 용량이 너무 커요';
+  end if;
+
+  insert into profiles (id, nickname, avatar)
+       values (auth.uid(), v_nick, p_avatar)
+  on conflict (id) do update
+     set nickname = excluded.nickname, avatar = excluded.avatar, updated_at = now();
+
+  -- 참가 중인 방에도 즉시 반영
+  update players set nickname = v_nick, avatar = p_avatar where user_id = auth.uid();
+end $$;
+
 -- ---------- 방 만들기 ----------
 create or replace function public.create_room(p_nickname text)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_code text;
   v_room uuid;
+  v_nick text := left(trim(coalesce(p_nickname,'')), 10);
 begin
   if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
-  if coalesce(trim(p_nickname),'') = '' then raise exception '닉네임을 입력해 주세요'; end if;
+  if v_nick = '' then raise exception '이름을 입력해 주세요'; end if;
 
   perform _cleanup_rooms();
+
+  insert into profiles (id, nickname) values (auth.uid(), v_nick)
+    on conflict (id) do update set nickname = excluded.nickname, updated_at = now();
 
   loop
     select string_agg(substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', 1 + floor(random()*31)::int, 1), '')
@@ -85,8 +132,8 @@ begin
   end loop;
 
   insert into rooms (code, host) values (v_code, auth.uid()) returning id into v_room;
-  insert into players (room_id, user_id, nickname, team)
-       values (v_room, auth.uid(), trim(p_nickname), 0);
+  insert into players (room_id, user_id, nickname, team, avatar)
+       values (v_room, auth.uid(), v_nick, 0, (select avatar from profiles where id = auth.uid()));
 
   return jsonb_build_object('room_id', v_room, 'code', v_code);
 end $$;
@@ -97,14 +144,23 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   r rooms%rowtype;
   v_team int;
+  v_nick text := left(trim(coalesce(p_nickname,'')), 10);
+  v_av   text;
 begin
   if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+  if v_nick = '' then raise exception '이름을 입력해 주세요'; end if;
 
   select * into r from rooms where code = upper(trim(p_code));
   if not found then raise exception '방을 찾을 수 없어요. 코드를 확인해 주세요'; end if;
 
+  insert into profiles (id, nickname) values (auth.uid(), v_nick)
+    on conflict (id) do update set nickname = excluded.nickname, updated_at = now();
+  select avatar into v_av from profiles where id = auth.uid();
+
   -- 이미 참가한 방이면 그대로 재입장 (새로고침/재접속)
   if exists (select 1 from players where room_id = r.id and user_id = auth.uid()) then
+    update players set nickname = v_nick, avatar = v_av
+     where room_id = r.id and user_id = auth.uid();
     return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
   end if;
 
@@ -112,15 +168,14 @@ begin
   if (select count(*) from players where room_id = r.id) >= 12 then
     raise exception '정원(12명)이 가득 찼어요';
   end if;
-  if coalesce(trim(p_nickname),'') = '' then raise exception '닉네임을 입력해 주세요'; end if;
 
   -- 인원이 적은 팀으로 자동 배정 (대기실에서 바꿀 수 있음)
   select case when count(*) filter (where team = 0) <= count(*) filter (where team = 1)
               then 0 else 1 end
     into v_team from players where room_id = r.id;
 
-  insert into players (room_id, user_id, nickname, team)
-       values (r.id, auth.uid(), trim(p_nickname), v_team);
+  insert into players (room_id, user_id, nickname, team, avatar)
+       values (r.id, auth.uid(), v_nick, v_team, v_av);
 
   return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
 end $$;
@@ -200,6 +255,36 @@ begin
   update rooms set game_state = p_state, updated_at = now() where id = p_room_id;
 end $$;
 
+-- ---------- 채팅 보내기 ----------
+create or replace function public.send_message(p_room_id uuid, p_text text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_text text := left(trim(coalesce(p_text,'')), 200);
+  v_nick text;
+begin
+  if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+  if v_text = '' then return; end if;
+
+  select nickname into v_nick from players
+   where room_id = p_room_id and user_id = auth.uid();
+  if v_nick is null then raise exception '방 참가자만 채팅할 수 있어요'; end if;
+
+  -- 도배 방지
+  if exists (select 1 from messages
+              where room_id = p_room_id and user_id = auth.uid()
+                and created_at > now() - interval '400 milliseconds') then
+    return;
+  end if;
+
+  insert into messages (room_id, user_id, nickname, text)
+       values (p_room_id, auth.uid(), v_nick, v_text);
+
+  -- 방마다 최근 100개만 보관
+  delete from messages
+   where room_id = p_room_id
+     and id <= (select max(id) - 100 from messages where room_id = p_room_id);
+end $$;
+
 -- ---------- 방 나가기 ----------
 create or replace function public.leave_room(p_room_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -223,6 +308,7 @@ end $$;
 -- ---------- 함수 실행 권한: 로그인(익명 포함) 사용자만 ----------
 revoke execute on all functions in schema public from anon;
 grant execute on function
+  public.save_profile(text, text),
   public.create_room(text),
   public.join_room(text, text),
   public.set_team(uuid, int),
@@ -230,6 +316,7 @@ grant execute on function
   public.throw_sticks(uuid),
   public.push_state(uuid, jsonb),
   public.force_state(uuid, jsonb),
+  public.send_message(uuid, text),
   public.leave_room(uuid)
 to authenticated;
 
