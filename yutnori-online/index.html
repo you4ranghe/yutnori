@@ -1265,11 +1265,13 @@ function playVoice(text,opt){
   if(VOICE[key]){
     try{const a=new Audio(VOICE[key]);a.volume=1;duck(1.5);a.play().catch(()=>{});return;}catch(e){}
   }
-  if(!TTS||!koVoice)return;
+  if(!TTS)return;
+  if(!koVoice)pickKoVoice();
   try{
     if(TTS.speaking||TTS.pending)TTS.cancel();
     const u=new SpeechSynthesisUtterance(text);
-    u.voice=koVoice;u.lang='ko-KR';
+    if(koVoice)u.voice=koVoice;
+    u.lang='ko-KR';
     u.rate=(opt&&opt.rate)||1.05;
     u.pitch=(opt&&opt.pitch)||1.15;
     u.volume=1;
@@ -1407,15 +1409,45 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden)bgmStop(0.3);
   else if(soundOn&&BGM.on)bgmStart();
 });
-/* 첫 터치에서 소리를 열고 배경음악을 시작한다 (브라우저 자동재생 정책) */
-document.addEventListener('pointerdown',()=>{
+/* ---------- 소리 열기 ----------
+   브라우저는 사용자가 화면을 한 번 건드리기 전에는 소리를 내주지 않는다.
+   특히 아이폰은 옆면 무음 스위치가 켜져 있으면 Web Audio 를 통째로 막는데,
+   아주 짧은 무음 오디오를 재생해 두면 '미디어 재생 중' 상태가 되어 소리가 난다. */
+const SILENT_WAV='data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+const IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||
+             (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let silentEl=null,audioUnlocked=false;
+function keepAudioAwake(){
   try{
+    if(!silentEl){
+      silentEl=new Audio(SILENT_WAV);
+      silentEl.loop=true;silentEl.volume=1;
+      silentEl.setAttribute('playsinline','');
+      silentEl.setAttribute('preload','auto');
+    }
+    const p=silentEl.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }catch(e){}
+}
+function unlockAudio(){
+  if(audioUnlocked)return;
+  audioUnlocked=true;
+  try{
+    keepAudioAwake();
     const a=ac();
     primeTTS();
-    const go=()=>{if(soundOn&&BGM.on)bgmStart();};
-    if(a.state==='running')go(); else a.resume().then(go).catch(()=>{});
+    const go=()=>{pickKoVoice();if(soundOn&&BGM.on)bgmStart();};
+    if(a.state==='running')go();
+    else a.resume().then(go).catch(()=>{});
+    // 그래도 소리가 열리지 않으면 무음 스위치를 알려 준다
+    setTimeout(()=>{
+      if(soundOn&&AC&&AC.state!=='running'&&IS_IOS)
+        miniToast('🔇 소리가 안 나면 아이폰 옆 무음 스위치를 확인해 주세요');
+    },1500);
   }catch(e){}
-},{once:true});
+}
+['pointerdown','touchend','click','keydown'].forEach(ev=>
+  document.addEventListener(ev,unlockAudio,{capture:true,passive:true}));
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');
   if(b&&!b.disabled&&b.id!=='soundBtn'&&b.id!=='soundBtn2')sfx.click();
@@ -2373,8 +2405,22 @@ function toggleSound(){
   soundOn=!soundOn;
   localStorage.setItem('yut_sound',soundOn?'1':'0');
   applySound();
-  if(soundOn){try{ac();sfx.good();bgmStart();}catch(e){}miniToast('🔊 소리 켜짐 (음악 + 효과음)');}
-  else{bgmStop(0.3);miniToast('🔇 소리 꺼짐');}
+  if(soundOn){
+    try{
+      keepAudioAwake();
+      const a=ac();
+      const go=()=>{sfx.good();bgmStart();};
+      if(a.state==='running')go(); else a.resume().then(go).catch(()=>{});
+    }catch(e){}
+    // 실제로 소리가 열렸는지 확인해서 알려 준다
+    setTimeout(()=>{
+      if(!soundOn)return;
+      if(AC&&AC.state==='running')miniToast('🔊 소리 켜짐 (음악 + 효과음)');
+      else miniToast(IS_IOS?'🔇 소리를 열지 못했어요 — 옆면 무음 스위치를 확인해 주세요'
+                           :'🔇 소리를 열지 못했어요 — 기기 음량을 확인해 주세요');
+    },350);
+  }
+  else{bgmStop(0.3);try{if(silentEl)silentEl.pause();}catch(e){}miniToast('🔇 소리 꺼짐');}
 }
 $('soundBtn').addEventListener('click',toggleSound);
 $('soundBtn2').addEventListener('click',toggleSound);
