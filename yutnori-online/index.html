@@ -943,7 +943,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       <li>내 말 위에 서면 업고 함께 가요.</li>
       <li>모서리·방에 <b>딱 서면</b> 지름길로 가요.</li>
       <li>마지막 말은 <b>끗수가 딱 맞아야</b> 나가요.</li>
-      <li>😇 <b>천국</b> — 방(중앙)으로 순간이동!</li>
+      <li>😇 <b>천국</b> — 그 말이 그대로 골인! (지옥의 반대)</li>
       <li>👿 <b>지옥</b> — 처음으로 돌아가요…</li>
       <li>🤰 <b>잉태</b> — 대기 말 하나를 공짜로 업어요.</li>
       <li>⏱ <b>20초</b> 안에 안 하면 자동으로 진행돼요.</li>
@@ -1800,7 +1800,7 @@ function scoreMove(chip,tg){
   s+=1200*E.pieces.filter(p=>p.node===dest&&!p.done).length;
   s+=45*T.pieces.filter(p=>p.node===dest&&!p.done).length;
   if(S.special){
-    if(dest===SP_NODE['천국'])s+=380;
+    if(dest===SP_NODE['천국'])s+=5000*movers;   // 그대로 골인
     if(dest===SP_NODE['잉태']&&T.pieces.some(p=>p.node===null&&!p.done))s+=260;
     if(dest===SP_NODE['지옥'])s-=900*movers;
   }
@@ -1938,20 +1938,13 @@ function applySpecial(dest,T,newHist){
       fxSfx('good');fxSay('잉태');buzz([30,40]);
     }
   }else if(sp.t==='천국'){
-    const E=S.teams[1-S.cur];
-    const caught=E.pieces.filter(p=>p.node===22);
-    if(caught.length){
-      caught.forEach(p=>{p.node=null;p.hist=[];});
-      S.throwsLeft++;
-      log('천국에서 상대 말 '+caught.length+'개까지 잡았습니다! 한 번 더!');
-    }
-    const hHist=[0,1,2,3,4,5,20,21];
-    T.pieces.filter(p=>p.node===dest&&!p.done).forEach(p=>{p.node=22;p.hist=hHist.slice();});
-    T.pieces.filter(p=>p.node===22&&!p.done).forEach(p=>p.hist=hHist.slice());
-    log(T.name+' 천국! 방(중앙)으로 순간이동!');
-    fxBig('😇','천국! 방으로 순간이동',sp.c);
-    fxConf(22,45,[T.color,'#FFB020','#fff']);
-    fxSfx('yut');fxSay('천국');buzz([30,40,60]);
+    // 천국에 딱 서면 그 말은 그대로 골인한다 (지옥의 반대)
+    const gone=T.pieces.filter(p=>p.node===dest&&!p.done);
+    gone.forEach(p=>{p.done=true;p.node=null;p.hist=[];});
+    log(T.name+' 천국! 말 '+gone.length+'개가 그대로 골인!');
+    fxBig('😇','천국! 그대로 골인 +'+gone.length,sp.c);
+    fxConf(0,55,[T.color,'#FFB020','#fff']);
+    fxSfx('goalCheer');fxSay('천국');buzz([30,40,60]);
   }else if(sp.t==='지옥'){
     T.pieces.filter(p=>p.node===dest&&!p.done).forEach(p=>{p.node=null;p.hist=[];});
     log(T.name+' 지옥! 말이 처음으로 돌아갑니다…');
