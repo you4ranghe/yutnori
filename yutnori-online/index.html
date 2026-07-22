@@ -557,6 +557,49 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 }
 #chatSend:active{transform:translateY(3px);box-shadow:none}
 
+/* ---------- 게임 중 감정 표현 ---------- */
+#emoBar{
+  position:fixed;left:0;right:0;z-index:16;display:none;
+  bottom:calc(90px + env(safe-area-inset-bottom));
+  max-width:600px;margin:0 auto;padding:9px 10px;
+  background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  box-shadow:0 10px 28px -12px rgba(21,24,48,.5);
+  gap:6px;overflow-x:auto;scrollbar-width:none;
+}
+#emoBar::-webkit-scrollbar{display:none}
+#emoBar.on{display:flex}
+.emo{
+  flex:none;width:48px;height:48px;border-radius:15px;font-size:25px;
+  background:var(--surface-2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .07s,opacity .15s;
+}
+.emo:active{transform:scale(.9)}
+#emoBar.cool .emo{opacity:.35;pointer-events:none}
+#emoCool{
+  position:absolute;left:10px;right:10px;bottom:4px;height:3px;border-radius:2px;
+  background:var(--amber);transform-origin:left;transform:scaleX(0);opacity:0;
+}
+#emoBar.cool #emoCool{opacity:1;animation:emoCool var(--cool,2s) linear forwards}
+@keyframes emoCool{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+.emoFly{
+  position:fixed;left:50%;bottom:150px;z-index:62;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  animation:emoUp 2.6s cubic-bezier(.2,.7,.3,1) forwards;
+}
+.emoFly .e{font-size:44px;line-height:1;filter:drop-shadow(0 5px 12px rgba(21,24,48,.4))}
+.emoFly .n{
+  font-size:11px;font-weight:800;color:#fff;background:rgba(21,24,48,.78);
+  border-radius:999px;padding:2px 9px;white-space:nowrap;
+}
+@keyframes emoUp{
+  0%  {opacity:0;transform:translate(calc(-50% + var(--x0)),24px) scale(.4)}
+  14% {opacity:1;transform:translate(calc(-50% + var(--x0)),0) scale(1.15)}
+  24% {opacity:1;transform:translate(calc(-50% + var(--x0)),-12px) scale(1)}
+  100%{opacity:0;transform:translate(calc(-50% + var(--x1)),-44vh) scale(.9)}
+}
+
 /* ---------- 효과 ---------- */
 #fxLayer{position:fixed;inset:0;pointer-events:none;z-index:60}
 #confettiCv{position:fixed;inset:0;width:100vw;height:100dvh;pointer-events:none;z-index:59}
@@ -730,6 +773,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <h1>윷놀이</h1>
     <div class="sub" id="modeSub"></div>
     <div class="hActions">
+      <button id="emoBtn" class="hBtn" style="display:none" aria-label="감정 표현">😀</button>
       <button id="chatBtn" class="hBtn" style="display:none" aria-label="채팅">💬<span id="chatBadge"></span></button>
       <button id="soundBtn" class="hBtn" aria-label="소리 켜기/끄기">🔊</button>
       <button id="exitBtn" class="hBtn" aria-label="나가기">🚪</button>
@@ -867,6 +911,18 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <div id="log"></div>
   </details>
   </section>
+</div>
+
+<div id="emoBar">
+  <button class="emo" data-e="👍">👍</button>
+  <button class="emo" data-e="👏">👏</button>
+  <button class="emo" data-e="🎉">🎉</button>
+  <button class="emo" data-e="😂">😂</button>
+  <button class="emo" data-e="😮">😮</button>
+  <button class="emo" data-e="😭">😭</button>
+  <button class="emo" data-e="😡">😡</button>
+  <button class="emo" data-e="🙏">🙏</button>
+  <div id="emoCool"></div>
 </div>
 
 <div id="actionBar" class="hidden"><button id="throwBtn">윷 던지기 🙌</button></div>
@@ -2802,9 +2858,87 @@ async function hostSkip(auto){
 }
 $('skipBtn').addEventListener('click',()=>hostSkip(false));
 
+/* ================= 게임 중 감정 표현 ================= */
+/* 화면에 잠깐 떴다 사라지는 표현이라 서버에 저장하지 않고 바로 전해 준다.
+   말판을 가리지 않도록 보내는 쪽·받는 쪽·화면 세 군데에서 양을 제한한다. */
+const EMO_COOL=2000;      // 한 번 보내면 2초 쉬기
+const EMO_BURST=5;        // 15초 안에 5번까지
+const EMO_WINDOW=15000;
+const EMO_LOCK=8000;      // 너무 많이 누르면 8초 잠금
+const EMO_MAX_ON=10;      // 화면에 동시에 떠 있을 수 있는 개수
+let emoTimes=[],emoLockUntil=0,emoHideTimer=null;
+const emoLastFrom={};
+
+function emoOpen(on){
+  const bar=$('emoBar');
+  const show=(on==null)?!bar.classList.contains('on'):on;
+  bar.classList.toggle('on',show);
+  clearTimeout(emoHideTimer);
+  if(show)emoHideTimer=setTimeout(()=>bar.classList.remove('on'),6000);
+}
+function emoCooldown(ms){
+  const bar=$('emoBar');
+  bar.style.setProperty('--cool',ms+'ms');
+  bar.classList.remove('cool');
+  void bar.offsetWidth;                       // 애니메이션 다시 시작
+  bar.classList.add('cool');
+  setTimeout(()=>bar.classList.remove('cool'),ms);
+}
+function canSendEmo(){
+  const now=Date.now();
+  if(now<emoLockUntil)return false;
+  emoTimes=emoTimes.filter(t=>now-t<EMO_WINDOW);
+  if(emoTimes.length&&now-emoTimes[emoTimes.length-1]<EMO_COOL)return false;
+  if(emoTimes.length>=EMO_BURST){emoLockUntil=now+EMO_LOCK;return false;}
+  return true;
+}
+function sendEmo(e){
+  if(!e)return;
+  if(!canSendEmo()){
+    const wait=Math.max(0,emoLockUntil-Date.now());
+    if(wait>0){miniToast('🙂 잠시만요 — '+Math.ceil(wait/1000)+'초 뒤에 다시 보낼 수 있어요');emoCooldown(wait);}
+    return;
+  }
+  emoTimes.push(Date.now());
+  emoCooldown(EMO_COOL);
+  flyEmo(myUid,e);
+  if(channel&&room){
+    try{channel.send({type:'broadcast',event:'emo',payload:{uid:myUid,e}});}catch(err){}
+  }
+  clearTimeout(emoHideTimer);
+  emoHideTimer=setTimeout(()=>$('emoBar').classList.remove('on'),4000);
+}
+/* 남이 보낸 표현 — 상대가 도배해도 내 화면은 지켜 준다 */
+function onEmo(uid,e){
+  if(!uid||!e||uid===myUid)return;
+  const now=Date.now();
+  if(emoLastFrom[uid]&&now-emoLastFrom[uid]<1200)return;
+  emoLastFrom[uid]=now;
+  flyEmo(uid,e);
+}
+function flyEmo(uid,e){
+  if(document.querySelectorAll('.emoFly').length>=EMO_MAX_ON)return;
+  const d=document.createElement('div');
+  d.className='emoFly';
+  const x0=(Math.random()*180-90)|0, x1=x0+((Math.random()*120-60)|0);
+  d.style.setProperty('--x0',x0+'px');
+  d.style.setProperty('--x1',x1+'px');
+  const em=document.createElement('div');em.className='e';em.textContent=e;
+  const nm=document.createElement('div');nm.className='n';
+  nm.textContent=((pMap[uid]&&pMap[uid].name)||'놀이꾼')+(uid===myUid?' (나)':'');
+  d.appendChild(em);d.appendChild(nm);
+  $('fxLayer').appendChild(d);
+  setTimeout(()=>d.remove(),2700);
+  tone(660+Math.random()*220,0.07,'sine',0.08);
+}
+$('emoBtn').addEventListener('click',()=>emoOpen());
+document.querySelectorAll('.emo').forEach(b=>
+  b.addEventListener('click',()=>sendEmo(b.dataset.e)));
+
 /* ================= 채팅 ================= */
 function openChat(){
   if(!room)return;
+  $('emoBar').classList.remove('on');
   chatOpen=true;unread=0;
   $('chatWrap').classList.add('open');
   document.body.classList.add('chatting');
@@ -2967,6 +3101,7 @@ async function enterRoom(row,spectate){
         ()=>refreshPlayers())
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'room_id=eq.'+row.id},
         p=>addChat(p.new))
+    .on('broadcast',{event:'emo'},p=>{const d=p.payload||{};onEmo(d.uid,d.e);})
     .subscribe(st=>{
       onChannelStatus(st);
       if(st==='SUBSCRIBED')
@@ -2977,6 +3112,7 @@ async function enterRoom(row,spectate){
   showGameScreen();
   $('roomAlert').classList.remove('on');
   $('chatBtn').style.display='';
+  $('emoBtn').style.display='';
   $('modeSub').innerHTML=spectate?'👀 관전 중':'🎮 함께 놀이 중';
   unread=0;updateChatBadge();
   trackPresence(spectate?'관전 중':'놀이 중');
@@ -3161,6 +3297,8 @@ function startSolo(opts){
   $('winOverlay').classList.remove('show');
   showGameScreen();
   $('chatBtn').style.display='none';
+  $('emoBtn').style.display='none';
+  $('emoBar').classList.remove('on');
   $('modeSub').innerHTML='🎯 혼자 연습 중';
   trackPresence('연습 중');
   renderLog();updateUI();
