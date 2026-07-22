@@ -40,7 +40,7 @@
   /* 글자 */
   --ink:#151830;
   --ink-2:#5A5F7D;
-  --ink-3:#8A90AB;
+  --ink-3:#666C85;
 
   /* 플레이매트 */
   --mat-1:#242A5C;
@@ -54,7 +54,7 @@
 
   /* 강조 */
   --amber:#FFB020;  --amber-d:#B96E00;
-  --mint:#3DDC84;   --mint-d:#158A4A;
+  --mint:#3DDC84;   --mint-d:#127A41;
   --violet:#7C6BFF; --violet-d:#4B3BC7;
 
   --font-display:'Black Han Sans','Gothic A1','Malgun Gothic',sans-serif;
@@ -526,6 +526,17 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
   background:linear-gradient(160deg,#2E3576,#1A1E4A);color:#fff;border-color:transparent;
   border-radius:16px 16px 5px 16px;
 }
+#quickRow{
+  display:flex;gap:7px;padding:10px 13px 0;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+#quickRow::-webkit-scrollbar{display:none}
+.quick{
+  flex:none;border:1px solid var(--line);background:var(--surface-2);
+  border-radius:999px;padding:9px 14px;font-size:15px;font-weight:800;
+  box-shadow:0 2px 0 var(--line-2);
+}
+.quick:active{transform:translateY(2px);box-shadow:none}
 #chatForm{
   display:flex;gap:9px;border-top:1px solid var(--line);
   padding:12px 13px calc(12px + env(safe-area-inset-bottom));
@@ -758,6 +769,12 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
           <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
         </label>
         <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가</b> — 혼자여도 시작</label>
+        <label>컴퓨터 실력
+          <select id="aiLevel"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select>
+        </label>
+        <label>생각할 시간
+          <select id="turnSec"><option value="20" selected>20초</option><option value="30">30초</option><option value="60">60초</option><option value="0">제한 없음</option></select>
+        </label>
         <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 하나만 뒤집히면 뒤로 1칸)</label>
         <label><input type="checkbox" id="specialOpt" checked> 특별칸 😇천국 · 👿지옥 · 🤰잉태</label>
       </div>
@@ -846,6 +863,15 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
   <div id="chatPanel">
     <div id="chatHead">💬 채팅 <button id="chatClose" aria-label="닫기">✕</button></div>
     <div id="chatList"></div>
+    <div id="quickRow">
+      <button class="quick" data-msg="👍">👍</button>
+      <button class="quick" data-msg="😂">😂</button>
+      <button class="quick" data-msg="😮">😮</button>
+      <button class="quick" data-msg="🎉">🎉</button>
+      <button class="quick" data-msg="화이팅!">화이팅!</button>
+      <button class="quick" data-msg="잘한다!">잘한다!</button>
+      <button class="quick" data-msg="아쉽다…">아쉽다…</button>
+    </div>
     <form id="chatForm" autocomplete="off">
       <input id="chatIn" maxlength="200" placeholder="메시지를 입력하세요">
       <button id="chatSend" type="submit">보내기</button>
@@ -916,6 +942,9 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <div class="optRow" style="margin-top:18px">
       <label>말 개수
         <select id="sPieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
+      </label>
+      <label>컴퓨터 실력
+        <select id="sAiLevel"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select>
       </label>
       <label><input type="checkbox" id="sBackdo" checked> 빽도 사용</label>
       <label><input type="checkbox" id="sSpecial" checked> 특별칸 😇천국 · 👿지옥 · 🤰잉태</label>
@@ -1030,7 +1059,8 @@ const REDUCED=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const CONF=window.YUT_CONFIG||{};
 const AI_UID='00000000-0000-0000-0000-00000000c0de';   // 컴퓨터(서버 schema.sql 과 동일)
-const TURN_SEC=20, HOST_GRACE=12;
+const HOST_GRACE=12;
+function turnLimit(){return (S&&S.turnSec!=null)?S.turnSec:20;}
 let sb=null,myUid=null,isGuest=true,myLoginId='',myProfile={nickname:'',avatar:null};
 let room=null,channel=null,lobbyCh=null,playersRows=[],pMap={},winShown=false;
 let solo=false,soloOpts=null,aiTimer=null,notifyRooms=true,spectating=false;
@@ -1638,19 +1668,50 @@ function scoreMove(chip,tg){
   if(tg.type==='enter')s+=12;
   return s;
 }
-function bestMove(){
+/* 컴퓨터 실력 — 쉬움은 가끔 엉뚱하게, 어려움은 잡힐 자리를 피한다 */
+const AI_LEVELS={easy:{rand:0.55,risk:0},normal:{rand:0.12,risk:0},hard:{rand:0,risk:420},
+                 best:{rand:0,risk:0}};
+/* 윷을 한 번 던졌을 때 각 끗수가 나올 확률 */
+const THROW_P={1:0.181,2:0.361,3:0.319,4:0.106,5:0.034};
+/* 이 칸에 서면 다음 차례에 잡힐 확률 (업고 있으면 더 크게 잃는다) */
+function riskAt(dest,movers){
+  if(typeof dest!=='number'||!S)return 0;
+  const E=S.teams[1-S.cur];
+  let p=0;
+  for(const e of E.pieces){
+    if(e.done||typeof e.node!=='number')continue;
+    for(const st in THROW_P)
+      if(computeDest(e.node,+st,false).dest===dest){p+=THROW_P[st];break;}
+  }
+  return Math.min(1,p)*Math.max(1,movers);
+}
+function moversAt(tg){
+  if(tg.type==='enter')return 1;
+  return S.teams[S.cur].pieces.filter(p=>p.node===tg.node&&!p.done).length;
+}
+function bestMove(level){
   if(!S||S.phase!=='select')return null;
-  let best=null;
+  const lv=AI_LEVELS[level]||AI_LEVELS.normal;
+  const list=[];
   S.pending.forEach((chip,ci)=>{
     const targets=[];
     if(canEnterWith(chip))targets.push({type:'enter'});
     nodesFor(chip).forEach(n=>targets.push({type:'node',node:n}));
     targets.forEach(tg=>{
-      const sc=scoreMove(chip,tg);
-      if(sc>-1e8&&(!best||sc>best.score))best={score:sc,chipIdx:ci,target:tg};
+      let sc=scoreMove(chip,tg);
+      if(sc<=-1e8)return;
+      if(lv.risk){
+        const d=(tg.type==='enter')?computeDest(null,chip.steps).dest
+                 :computeDest(tg.node,chip.steps,isLastGroup(S.teams[S.cur],tg.node)).dest;
+        sc-=riskAt(d,moversAt(tg))*lv.risk;
+      }
+      list.push({score:sc,chipIdx:ci,target:tg});
     });
   });
-  return best;
+  if(!list.length)return null;
+  if(lv.rand&&list.length>1&&Math.random()<lv.rand)
+    return list[Math.floor(Math.random()*list.length)];
+  return list.reduce((a,b)=>b.score>a.score?b:a);
 }
 
 function executeMove(target){
@@ -2475,7 +2536,7 @@ function actionKey(){
   return [S.ver||0,S.phase,S.cur,S.teams[S.cur].pIdx,S.pending.length,S.throwsLeft].join('|');
 }
 function timerActive(){
-  return !!S && !solo && !!room && S.winner===null && !S.busy && !MA && !aiTurn()
+  return !!S && !solo && !!room && turnLimit()>0 && S.winner===null && !S.busy && !MA && !aiTurn()
          && (S.phase==='throw'?S.throwsLeft>0:S.phase==='select');
 }
 function tickTimer(){
@@ -2483,7 +2544,7 @@ function tickTimer(){
   if(!timerActive()){el.style.display='none';tKey='';return;}
   const k=actionKey();
   if(k!==tKey){tKey=k;tStart=Date.now();lastTick=-1;}
-  const left=TURN_SEC-Math.floor((Date.now()-tStart)/1000);
+  const left=turnLimit()-Math.floor((Date.now()-tStart)/1000);
   el.style.display='';
   el.textContent='⏱ '+Math.max(0,left);
   const urgent=left<=5;
@@ -2506,7 +2567,7 @@ function autoAct(){
     miniToast('⏰ 시간이 다 되어 자동으로 던졌어요');
     doThrow();
   }else if(S.phase==='select'){
-    const m=bestMove();
+    const m=bestMove('best');
     if(m){
       miniToast('⏰ 시간이 다 되어 자동으로 움직였어요');
       S.sel=m.chipIdx;
@@ -2524,7 +2585,7 @@ function maybeAI(){
     if(!S||S.winner!==null||!aiTurn()||!iDriveAI()||S.busy||MA)return;
     if(S.phase==='throw'&&S.throwsLeft>0)doThrow();
     else if(S.phase==='select'){
-      const m=bestMove();
+      const m=bestMove(S.aiLevel);
       if(m){
         S.sel=m.chipIdx;
         aiTimer=setTimeout(()=>{
@@ -2556,7 +2617,9 @@ function buildInitialState(rows,opts){
     ver:1,ev:{type:'init'},
     teams:[mk(0),mk(1)],
     cur:0,throwsLeft:1,pending:[],phase:'throw',sel:0,
-    backdo:!!opts.backdo,special:!!opts.special,winner:null,winBy:null,logs:[]
+    backdo:!!opts.backdo,special:!!opts.special,
+    aiLevel:opts.aiLevel||'normal',turnSec:opts.turnSec==null?20:opts.turnSec,
+    winner:null,winBy:null,logs:[]
   };
   st.logs.unshift('놀이 시작! '+st.teams[0].name+' '+st.teams[0].players[0].name+'부터 던집니다.');
   return st;
@@ -2764,14 +2827,20 @@ async function loadChat(){
 $('chatBtn').addEventListener('click',openChat);
 $('chatClose').addEventListener('click',closeChat);
 $('chatBack').addEventListener('click',closeChat);
-$('chatForm').addEventListener('submit',async e=>{
-  e.preventDefault();
-  const t=$('chatIn').value.trim();
+async function sendChat(t){
   if(!t||!room)return;
-  $('chatIn').value='';
   const {error}=await sb.rpc('send_message',{p_room_id:room.id,p_text:t});
   if(error)miniToast('⚠️ '+errMsg(error));
+}
+$('chatForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=$('chatIn').value.trim();
+  $('chatIn').value='';
+  sendChat(t);
 });
+/* 타이핑이 어려운 분도 한 번에 참여하도록 */
+document.querySelectorAll('.quick').forEach(b=>
+  b.addEventListener('click',()=>sendChat(b.dataset.msg)));
 
 /* ================= 화면 전환 ================= */
 function showApp(){
@@ -2977,7 +3046,9 @@ $('wStartBtn').addEventListener('click',async()=>{
     pieceCount:parseInt($('pieceCount').value,10),
     backdo:$('backdoOpt').checked,
     special:$('specialOpt').checked,
-    aiFill:$('aiFill').checked
+    aiFill:$('aiFill').checked,
+    aiLevel:$('aiLevel').value,
+    turnSec:parseInt($('turnSec').value,10)
   };
   if(!playerRows().length){$('waitMsg').textContent='⚠️ 참가자가 없어요';return;}
   if(!opts.aiFill&&!(playerRows().some(p=>p.team===0)&&playerRows().some(p=>p.team===1))){
@@ -2996,7 +3067,8 @@ $('againBtn').addEventListener('click',async()=>{
   const aiFill=$('aiFill').checked;
   if(!playerRows().length){miniToast('⚠️ 참가자가 없어요');return;}
   if(!aiFill&&(!t0||!t1)){miniToast('⚠️ 두 팀 모두 1명 이상 있어야 해요');return;}
-  const opts={pieceCount:S.teams[0].pieces.length,backdo:S.backdo,special:S.special,aiFill};
+  const opts={pieceCount:S.teams[0].pieces.length,backdo:S.backdo,special:S.special,aiFill,
+               aiLevel:$('aiLevel').value,turnSec:parseInt($('turnSec').value,10)};
   const st=buildInitialState(playersRows,opts);
   const {error}=await sb.rpc('start_game',{p_room_id:room.id,p_state:st});
   if(error)miniToast('⚠️ '+errMsg(error));
@@ -3042,7 +3114,9 @@ function startSolo(opts){
     gid:'solo',ver:1,ev:{type:'init'},
     teams:[mk(0,[me]),mk(1,[ai])],
     cur:0,throwsLeft:1,pending:[],phase:'throw',sel:0,
-    backdo:!!opts.backdo,special:!!opts.special,winner:null,winBy:null,logs:[]
+    backdo:!!opts.backdo,special:!!opts.special,
+    aiLevel:opts.aiLevel||'normal',turnSec:0,
+    winner:null,winBy:null,logs:[]
   };
   S.logs.unshift('연습 시작! 내가 먼저 던집니다.');
   playersRows=[];
@@ -3068,7 +3142,8 @@ $('soloGo').addEventListener('click',()=>{
   startSolo({
     pieceCount:parseInt($('sPieceCount').value,10),
     backdo:$('sBackdo').checked,
-    special:$('sSpecial').checked
+    special:$('sSpecial').checked,
+    aiLevel:$('sAiLevel').value
   });
 });
 
