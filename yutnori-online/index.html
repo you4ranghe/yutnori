@@ -4,6 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>윷놀이 온라인</title>
+
+<!-- 홈 화면에 추가했을 때 앱처럼 보이게 -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png">
+<meta name="theme-color" content="#1a73e8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="윷놀이">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="친구들과 함께 즐기는 실시간 윷놀이">
+<meta property="og:title" content="윷놀이 온라인">
+<meta property="og:description" content="로비에서 방을 눌러 바로 참가! 친구들과 즐기는 실시간 윷놀이">
+<meta property="og:type" content="website">
+<meta property="og:image" content="./icon-512.png">
 <style>
 :root{
   --bg:#eef1f6;
@@ -34,7 +50,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 input,select{font-family:inherit;font-size:16px}
 .hidden{display:none !important}
 
-.wrap{max-width:600px;margin:0 auto;padding:10px 12px}
+.wrap{
+  max-width:600px;margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 10px max(12px,env(safe-area-inset-left));
+}
 #app{padding-bottom:118px}
 body.chatting #actionBar{display:none}
 
