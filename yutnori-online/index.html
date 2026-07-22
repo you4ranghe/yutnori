@@ -112,7 +112,7 @@ body.chatting #actionBar{display:none}
 
 
 /* ---------- 헤더 ---------- */
-header{display:flex;align-items:center;gap:12px;padding:2px 2px 14px}
+header{display:flex;align-items:center;gap:12px;padding:2px 2px 11px}
 header h1{
   font-family:var(--font-display);font-weight:400;
   font-size:26px;letter-spacing:-.4px;line-height:1;
@@ -128,6 +128,9 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
   transition:transform .06s,box-shadow .06s;
 }
 .hBtn:active{transform:translateY(2px);box-shadow:none}
+.avBtn{padding:0;overflow:hidden}
+.avBtn .av{width:40px;height:40px;border-width:0;box-shadow:none}
+.acctRow{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:16px;padding-top:15px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-2);font-weight:800}
 #chatBadge{
   position:absolute;top:-6px;right:-6px;background:var(--coral);color:#fff;
   border:2px solid var(--bg);
@@ -139,7 +142,7 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 /* ---------- 로비 히어로 ---------- */
 #hero{
   position:relative;overflow:hidden;
-  border-radius:26px;padding:20px 20px 0;margin-bottom:16px;
+  border-radius:24px;padding:14px 16px;margin-bottom:14px;
   background:linear-gradient(150deg,var(--mat-1),var(--mat-2) 78%);
   box-shadow:0 20px 40px -20px rgba(20,23,51,.85),inset 0 1px 0 rgba(255,255,255,.12);
   color:#fff;
@@ -152,22 +155,18 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
   background-size:20px 20px, 100% 100%;
   opacity:.9;
 }
-#heroInner{position:relative;display:flex;align-items:flex-end;gap:12px}
-#heroText{flex:1;min-width:0;padding-bottom:14px}
-#hero .kicker{
-  font-size:11.5px;font-weight:900;letter-spacing:2.4px;
-  color:var(--teal-l);text-transform:uppercase;margin-bottom:6px;
-}
+#heroInner{position:relative;display:flex;align-items:center;gap:14px}
+#heroText{flex:1;min-width:0}
+
 #hero h2{
   font-family:var(--font-display);font-weight:400;
-  font-size:clamp(30px,8.5vw,40px);line-height:.98;letter-spacing:-.5px;
+  font-size:clamp(24px,7vw,29px);line-height:1.06;letter-spacing:-.4px;
 }
-#hero .tagline{font-size:13.5px;color:rgba(255,255,255,.72);margin-top:8px;font-weight:700}
-#heroCv{width:118px;height:132px;flex:none;display:block}
+
+#heroCv{width:82px;height:92px;flex:none;display:block}
 #liveStrip{
   position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  margin-top:14px;padding:11px 4px 14px;border-top:1px solid rgba(255,255,255,.12);
-  font-size:12.5px;font-weight:700;color:rgba(255,255,255,.72);
+  margin:10px 0 0;font-size:12.5px;font-weight:700;
 }
 .livePill{
   display:inline-flex;align-items:center;gap:6px;
@@ -188,14 +187,15 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 #acctKind{font-size:12px;color:var(--ink-2);font-weight:700;margin-top:1px}
 
 /* ---------- 큰 액션 버튼 ---------- */
-.btnRow{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:26px}
+.btnRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#hero .btnRow{margin:13px 0 0}
 .bigBtn{
-  min-height:84px;border-radius:22px;color:#fff;font-size:16px;font-weight:900;
+  min-height:66px;border-radius:18px;color:#fff;font-size:15px;font-weight:900;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
   letter-spacing:-.2px;position:relative;overflow:hidden;
   transition:transform .06s,box-shadow .06s,filter .12s;
 }
-.bigBtn .be{font-size:27px;line-height:1}
+.bigBtn .be{font-size:23px;line-height:1}
 .bigBtn:active{transform:translateY(4px)}
 .bigBtn.blue{
   background:linear-gradient(165deg,#18D8BC,var(--teal));
@@ -211,7 +211,7 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 /* ---------- 섹션 제목 ---------- */
 .secTitle{
   display:flex;align-items:center;gap:9px;
-  font-size:13px;font-weight:900;margin:0 4px 10px;
+  font-size:13px;font-weight:900;margin:0 4px 9px;
   letter-spacing:.6px;color:var(--ink);
 }
 .secTitle .cnt{font-size:11.5px;color:var(--ink-3);font-weight:800;letter-spacing:0}
@@ -220,19 +220,19 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
   background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 0 var(--line-2);
 }
 .secTitle button:active{transform:translateY(2px);box-shadow:none}
-#openRooms{margin-bottom:26px}
-#onlineList{margin-bottom:26px;display:flex;flex-wrap:wrap;gap:8px}
+#openRooms{margin-bottom:18px}
+#onlineList{margin-bottom:14px;display:flex;flex-wrap:wrap;gap:7px}
 
 .emptyBox{
   border:1.5px dashed var(--line-2);border-radius:var(--r-lg);
-  padding:26px 16px;text-align:center;color:var(--ink-2);font-size:14px;font-weight:700;
+  padding:20px 16px;text-align:center;color:var(--ink-2);font-size:13.5px;font-weight:700;
   background:rgba(255,255,255,.5);
 }
-.emptyBox .ee{font-size:32px;display:block;margin-bottom:8px;opacity:.85}
+.emptyBox .ee{font-size:28px;display:block;margin-bottom:6px;opacity:.85}
 
 /* ---------- 방 목록 ---------- */
 .roomItem{
-  display:flex;align-items:center;gap:12px;padding:13px;margin-bottom:10px;width:100%;
+  display:flex;align-items:center;gap:11px;padding:11px 12px;margin-bottom:8px;width:100%;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
   box-shadow:var(--sh-card);text-align:left;position:relative;overflow:hidden;
   transition:transform .07s,box-shadow .12s;
@@ -622,8 +622,8 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 #winSub{font-size:14.5px;color:var(--ink-2);margin-bottom:22px;font-weight:700;line-height:1.6}
 
 @media (max-width:360px){
-  .btnRow{grid-template-columns:1fr}
-  #heroCv{width:92px;height:104px}
+  #heroCv{width:72px;height:80px}
+  .bigBtn{font-size:14px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01s !important;animation-iteration-count:1 !important;transition-duration:.01s !important}
@@ -638,47 +638,34 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
   <header>
     <h1>윷놀이</h1>
     <div class="hActions">
+      <button id="profBtn" class="hBtn avBtn" aria-label="내 프로필"><span id="acctAv"></span></button>
       <button id="soundBtn2" class="hBtn" aria-label="소리 켜기/끄기">🔊</button>
     </div>
   </header>
 
   <section id="hero">
     <div id="heroInner">
+      <canvas id="heroCv" width="180" height="200" aria-hidden="true"></canvas>
       <div id="heroText">
-        <div class="kicker">도 · 개 · 걸 · 윷 · 모</div>
-        <h2>던지고<br>달리고<br>잡는다</h2>
-        <div class="tagline">방을 만들면 친구가 바로 들어와요.</div>
+        <h2>던지고 달리고<br>잡는다</h2>
+        <div id="liveStrip">
+          <span class="livePill"><span class="dot"></span><span id="liveOn">1</span>명</span>
+          <span class="livePill">🚪 <span id="liveRooms">0</span>개 방</span>
+        </div>
       </div>
-      <canvas id="heroCv" width="236" height="264" aria-hidden="true"></canvas>
     </div>
-    <div id="liveStrip">
-      <span class="livePill"><span class="dot"></span><span id="liveOn">1</span>명 접속</span>
-      <span class="livePill">🚪 <span id="liveRooms">0</span>개 방</span>
-      <span>지금 바로 한 판</span>
+    <div class="btnRow">
+      <button id="createBtn" class="bigBtn blue"><span class="be">🏠</span>방 만들기</button>
+      <button id="soloBtn" class="bigBtn gold"><span class="be">🎯</span>혼자 연습</button>
     </div>
   </section>
-
-  <div class="card" id="meCard">
-    <span id="acctAv" style="flex:none;display:flex"></span>
-    <div style="flex:1;min-width:0">
-      <div id="acctName">—</div>
-      <div id="acctKind"></div>
-    </div>
-    <button class="miniBtn" id="profBtn">✏️ 프로필</button>
-    <button class="miniBtn" id="authBtn">로그인</button>
-  </div>
-
-  <div class="btnRow">
-    <button id="createBtn" class="bigBtn blue"><span class="be">🏠</span>방 만들기</button>
-    <button id="soloBtn" class="bigBtn gold"><span class="be">🎯</span>혼자 연습</button>
-  </div>
 
   <div class="secTitle">🚪 놀이방 <span class="cnt" id="roomCount"></span>
     <button id="refreshBtn" aria-label="새로고침">🔄</button>
   </div>
   <div id="openRooms"></div>
 
-  <div class="secTitle">🟢 지금 접속 중 <span class="cnt" id="onCount"></span></div>
+  <div class="secTitle">🟢 접속 중 <span class="cnt" id="onCount"></span></div>
   <div id="onlineList"></div>
 
   <div class="errMsg" id="lobbyMsg"></div>
@@ -710,7 +697,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <button class="miniBtn" id="jaLater">나중에</button>
   </div>
 
-  <div id="specBar">👀 <span id="specText">관전 중이에요 — 구경만 할 수 있어요</span></div>
+  <div id="specBar">👀 <span id="specText">관전 중</span></div>
 
   <!-- ===== 방 화면 (놀이 시작 전) ===== -->
   <section id="roomPanel" class="hidden">
@@ -718,7 +705,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       <span id="rHostAv" style="display:flex;flex:none"></span>
       <div style="flex:1;min-width:0">
         <div class="rTitle" id="rTitle">놀이방</div>
-        <div class="rSub">친구가 <b>로비의 놀이방 목록</b>에서 이 방을 눌러 들어와요</div>
+        <div class="rSub">친구가 로비에서 이 방을 눌러 들어와요</div>
       </div>
     </div>
 
@@ -737,14 +724,14 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
 
     <div class="card optCard" id="hostOpts">
-      <div class="optTitle">⚙️ 놀이 설정 <span class="cnt">방장만 바꿀 수 있어요</span></div>
+      <div class="optTitle">⚙️ 놀이 설정 <span class="cnt">방장만</span></div>
       <div class="optRow" style="margin-bottom:0">
         <label>말 개수
           <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
         </label>
-        <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가 맡기</b> — 혼자여도 바로 시작!</label>
-        <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 표시 윷가락 하나만 뒤집히면 뒤로 1칸)</label>
-        <label><input type="checkbox" id="specialOpt" checked> 특별칸 사용 (😇천국 · 👿지옥 · 🤰잉태)</label>
+        <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가</b> — 혼자여도 시작</label>
+        <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 하나만 뒤집히면 뒤로 1칸)</label>
+        <label><input type="checkbox" id="specialOpt" checked> 특별칸 😇천국 · 👿지옥 · 🤰잉태</label>
       </div>
     </div>
 
@@ -755,7 +742,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 
   <!-- ===== 놀이 화면 ===== -->
   <section id="gamePanel" class="hidden">
-  <button id="backRoomBar" style="display:none">🏠 컴퓨터와 그만하고 <b>대기방으로 돌아가기</b></button>
+  <button id="backRoomBar" style="display:none">🏠 그만하고 <b>대기방으로</b></button>
   <div id="turnBanner" aria-live="polite">
     <div id="turnBadge">🎲</div>
     <div style="min-width:0">
@@ -800,16 +787,17 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <summary>📜 윷놀이 규칙</summary>
     <ul>
       <li>🐖 도 1칸 · 🐕 개 2칸 · 🐑 걸 3칸 · 🐂 윷 4칸 · 🐎 모 5칸</li>
-      <li>윷·모가 나오면 한 번 더 던져요. 다 던진 뒤 결과를 골라 하나씩 써요.</li>
-      <li>상대 말을 잡으면 상대 말은 처음으로 돌아가고, 한 번 더 던져요.</li>
-      <li>내 말 위에 도착하면 업어서 함께 움직여요.</li>
-      <li>모서리나 가운데 방에 <b>딱 맞게 서면</b> 지름길로 갈 수 있어요.</li>
-      <li>마지막 말은 <b>딱 맞는 끗수</b>가 나와야 날 수 있어요. 넘치면 못 나요!</li>
-      <li>😇 <b>천국</b>에 딱 서면 방(중앙)으로 순간이동해요!</li>
-      <li>👿 <b>지옥</b>에 딱 서면 말이 처음으로 돌아가요…</li>
-      <li>🤰 <b>잉태</b>에 딱 서면 대기하던 말 하나를 공짜로 업어요.</li>
-      <li>⏱ 온라인에서는 <b>20초</b> 안에 던지거나 움직이지 않으면 자동으로 진행돼요.</li>
-      <li>🚪 게임 중 나가면 같은 팀에 아무도 없을 때 상대 팀이 이겨요. 한 명이라도 남으면 계속!</li>
+      <li>윷·모는 한 번 더 던져요. 다 던진 뒤 골라서 써요.</li>
+      <li>상대 말을 잡으면 한 번 더 던져요.</li>
+      <li>내 말 위에 서면 업고 함께 가요.</li>
+      <li>모서리·방에 <b>딱 서면</b> 지름길로 가요.</li>
+      <li>마지막 말은 <b>끗수가 딱 맞아야</b> 나가요.</li>
+      <li>😇 <b>천국</b> — 방(중앙)으로 순간이동!</li>
+      <li>👿 <b>지옥</b> — 처음으로 돌아가요…</li>
+      <li>🤰 <b>잉태</b> — 대기 말 하나를 공짜로 업어요.</li>
+      <li>⏱ <b>20초</b> 안에 안 하면 자동으로 진행돼요.</li>
+      <li>🚪 팀에 아무도 안 남으면 상대 팀이 이겨요.</li>
+      <li>🏆 <b>말을 모두 먼저 내보내면 이겨요!</b></li>
     </ul>
   </details>
 
@@ -850,17 +838,17 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 <div class="fullOverlay" id="authDlg" style="display:none">
   <div class="dialog">
     <h2 id="authTitle">🔑 로그인</h2>
-    <div class="hint">가입하면 이름과 프로필 사진이 저장되어, 다른 기기에서도 그대로 쓸 수 있어요.<br><b>이메일 인증 없이</b> 가입하는 즉시 바로 로그인됩니다.</div>
+    <div class="hint">가입하면 다른 기기에서도 이름과 사진이 그대로예요.<br><b>이메일 인증 없이</b> 바로 로그인됩니다.</div>
     <div class="tabs">
       <button class="tab on" id="tabLogin">로그인</button>
       <button class="tab" id="tabSignup">회원가입</button>
     </div>
     <label class="fLbl" for="authId">아이디</label>
     <input class="big" id="authId" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="예: yutdosa">
-    <div class="fieldNote">영문·숫자 3자 이상. 이메일 주소를 그대로 써도 돼요.</div>
+    <div class="fieldNote">영문·숫자 3자 이상</div>
     <label class="fLbl" for="authPw">비밀번호 (6자 이상)</label>
     <input class="big" id="authPw" type="password" autocomplete="current-password" placeholder="••••••">
-    <div class="fieldNote" id="pwNote">잊어버려도 찾아주는 기능이 없으니 기억하기 쉬운 것으로 정해 주세요.</div>
+    <div class="fieldNote" id="pwNote">찾기 기능이 없으니 기억하기 쉬운 걸로 정해 주세요</div>
     <button id="authGo" class="primaryBtn" style="margin-top:16px">로그인</button>
     <div class="errMsg" id="authMsg"></div>
     <button id="authClose" class="ghostBtn">닫기</button>
@@ -871,9 +859,9 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 <div class="fullOverlay" id="profDlg" style="display:none">
   <div class="dialog">
     <h2>😀 내 프로필</h2>
-    <div class="hint">게임 중 다른 사람에게 보이는 이름과 사진이에요.</div>
-    <div style="display:flex;gap:16px;align-items:center;margin:18px 0 4px">
-      <span id="profPrev" class="av ph" style="width:78px;height:78px;font-size:36px">?</span>
+    <div class="hint">게임 중 다른 사람에게 보여요.</div>
+    <div style="display:flex;gap:14px;align-items:center;margin:16px 0 2px">
+      <span id="profPrev" class="av ph" style="width:70px;height:70px;font-size:32px">?</span>
       <div style="flex:1;display:flex;flex-wrap:wrap;gap:8px">
         <button class="miniBtn" id="pickImg">📷 사진 고르기</button>
         <button class="miniBtn" id="clrImg">🗑 사진 지우기</button>
@@ -884,7 +872,10 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <input class="big" id="profNick" maxlength="10" placeholder="예: 윷도사">
     <button id="profSave" class="primaryBtn" style="margin-top:16px">저장</button>
     <div class="errMsg" id="profMsg"></div>
-    <button id="profLogout" class="ghostBtn" style="display:none">🚪 로그아웃</button>
+    <div class="acctRow">
+      <span id="acctKind">게스트</span>
+      <button class="miniBtn" id="authBtn">로그인</button>
+    </div>
     <button id="profClose" class="ghostBtn">닫기</button>
   </div>
 </div>
@@ -893,14 +884,14 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 <div class="fullOverlay" id="soloDlg" style="display:none">
   <div class="dialog">
     <h2>🎯 혼자 연습하기</h2>
-    <div class="hint">🐢 나 vs 🐰 컴퓨터! 규칙을 익히기 좋아요.</div>
+    <div class="hint">🐢 나 vs 🐰 컴퓨터</div>
     <div class="optRow" style="margin-top:18px">
       <label>말 개수
         <select id="sPieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
       </label>
       <label><input type="checkbox" id="sBackdo" checked> 빽도 사용</label>
-      <label><input type="checkbox" id="sSpecial" checked> 특별칸 사용 (😇천국 · 👿지옥 · 🤰잉태)</label>
-      <label><input type="checkbox" id="sNotify" checked> 누가 방을 만들면 알려주기 🔔</label>
+      <label><input type="checkbox" id="sSpecial" checked> 특별칸 😇천국 · 👿지옥 · 🤰잉태</label>
+      <label><input type="checkbox" id="sNotify" checked> 새 방이 열리면 알려주기 🔔</label>
     </div>
     <button id="soloGo" class="primaryBtn solo">시작하기 🎯</button>
     <button id="soloClose" class="ghostBtn">닫기</button>
@@ -914,7 +905,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <div id="winTitle"></div>
     <div id="winSub"></div>
     <button id="againBtn" class="primaryBtn">🎉 새 놀이 시작</button>
-    <div class="hint" id="againMsg" style="display:none">방장이 새 놀이를 시작할 수 있어요</div>
+    <div class="hint" id="againMsg" style="display:none">방장이 새 놀이를 시작해요</div>
     <button id="winBackBtn" class="ghostBtn" style="display:none">🏠 대기방으로 돌아가기</button>
     <button id="winLeaveBtn" class="ghostBtn">🚪 나가기</button>
   </div>
@@ -1399,8 +1390,8 @@ function showWinner(){
   $('winTitle').textContent=T.name+' 승리!';
   $('winTitle').style.color=T.deep;
   $('winSub').textContent=byLeave
-    ? '상대 팀에 아무도 남지 않아 '+T.name+'이(가) 이겼어요.'
-    : T.players.map(p=>p.name).join(', ')+' — 모든 말이 완주했어요. 얼쑤! 🎊';
+    ? '상대 팀에 아무도 남지 않았어요.'
+    : T.players.map(p=>p.name).join(', ') + ' — 모든 말 완주! 얼쑤 🎊';
   const canRestart=solo||(!spectating&&room&&myUid===room.host);
   $('againBtn').style.display=canRestart?'':'none';
   $('againMsg').style.display=canRestart?'none':'';
@@ -1820,8 +1811,9 @@ function drawPiece(c,x,y,color,deep,count,icon){
 (function heroSticks(){
   const cv=$('heroCv'); if(!cv)return;
   const c=cv.getContext('2d');
+  const SC=cv.width/300;
   const st=[0,1,2,3].map(i=>({
-    y:34+i*62, rock:(i%2?1:-1)*0.06, ph:i*1.4,
+    y:cv.height*(0.135+i*0.243), rock:(i%2?1:-1)*0.06, ph:i*1.4,
     flat:i!==2, flip:0, next:2000+i*900+Math.random()*2500
   }));
   let t0=null;
@@ -1836,12 +1828,12 @@ function drawPiece(c,x,y,color,deep,count,icon){
       const spin=s.flip>0?(1-s.flip)*Math.PI:0;
       const ang=s.rock*Math.sin(t/900+s.ph)-0.28;
       const lift=s.flip>0?Math.sin((1-s.flip)*Math.PI)*16:0;
-      drawStick(c,cv.width/2,s.y-lift,ang,(s.flat?0:Math.PI)+spin,s.flat,false,0.62);
+      drawStick(c,cv.width/2,s.y-lift,ang,(s.flat?0:Math.PI)+spin,s.flat,false,SC);
     });
     requestAnimationFrame(frame);
   }
   if(REDUCED){
-    st.forEach(s=>drawStick(c,cv.width/2,s.y,-0.28,s.flat?0:Math.PI,s.flat,false,0.62));
+    st.forEach(s=>drawStick(c,cv.width/2,s.y,-0.28,s.flat?0:Math.PI,s.flat,false,SC));
   }else requestAnimationFrame(frame);
 })();
 
@@ -1906,7 +1898,7 @@ function updateUI(){
   $('skipBtn').style.display=
     (!solo&&!spectating&&!ai&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
   $('specBar').classList.toggle('on',spectating);
-  if(spectating)$('specText').textContent='관전 중이에요 — 구경만 할 수 있어요';
+  if(spectating)$('specText').textContent='관전 중';
   $('backRoomBar').style.display=
     (!solo&&!spectating&&room&&myUid===room.host&&S.winner===null&&gameHasAI())?'':'none';
 
@@ -2218,7 +2210,7 @@ function renderChat(){
   list.innerHTML='';
   if(!chatMsgs.length){
     const e=document.createElement('div');
-    e.className='empty';e.textContent='아직 대화가 없어요. 첫 인사를 건네 보세요! 👋';
+    e.className='empty';e.textContent='첫 인사를 건네 보세요 👋';
     list.appendChild(e);return;
   }
   chatMsgs.forEach(m=>{
@@ -2304,7 +2296,7 @@ function onRoomPresJoin(list){
   const fresh=(list||[]).filter(p=>p&&p.uid&&p.uid!==myUid&&!inGame(p.uid));
   if(!fresh.length)return;
   const nm=fresh[0].name||'누군가';
-  $('jaText').textContent=nm+' 님이 들어왔어요! 컴퓨터와의 놀이를 끝내고 함께 놀까요?';
+  $('jaText').textContent=nm+' 님이 왔어요. 함께 할까요?';
   $('joinAlert').classList.add('on');
   sfx.join();buzz([30,40,30]);
   miniToast('🙋 '+nm+' 님이 들어왔어요');
@@ -2320,7 +2312,7 @@ async function reopenRoom(){
 $('jaGo').addEventListener('click',reopenRoom);
 $('jaLater').addEventListener('click',()=>$('joinAlert').classList.remove('on'));
 $('backRoomBar').addEventListener('click',()=>{
-  if(confirm('컴퓨터와의 놀이를 끝내고 대기방으로 돌아갈까요?'))reopenRoom();
+  if(confirm('대기방으로 돌아갈까요?'))reopenRoom();
 });
 $('winBackBtn').addEventListener('click',()=>{
   $('winOverlay').classList.remove('show');
@@ -2341,7 +2333,7 @@ async function enterRoom(row,spectate){
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:'id=eq.'+row.id},
         p=>onRoomRow(p.new))
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'rooms'},
-        p=>{if(p.old&&p.old.id===row.id)backToLobby('🏠 오랫동안 진행이 없어 방이 닫혔어요');})
+        p=>{if(p.old&&p.old.id===row.id)backToLobby('🏠 진행이 없어 방이 닫혔어요');})
     .on('postgres_changes',{event:'*',schema:'public',table:'players',filter:'room_id=eq.'+row.id},
         ()=>refreshPlayers())
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'players'},
@@ -2389,7 +2381,7 @@ function renderRoom(){
   const cnt=[0,0];
   const iAmIn=playersRows.some(p=>p.user_id===myUid);
   $('specBar').classList.toggle('on',!iAmIn);
-  if(!iAmIn)$('specText').textContent='아직 구경만 하고 있어요 — 아래에서 팀을 고르면 함께 놀 수 있어요!';
+  if(!iAmIn)$('specText').textContent='팀을 고르면 참가돼요';
   for(const ti of[0,1]){
     const box=$('pList'+ti);box.innerHTML='';
     const mem=playersRows.filter(p=>p.team===ti);
@@ -2423,9 +2415,9 @@ function renderRoom(){
   $('wStartBtn').disabled=!ok;
   $('wStartBtn').textContent=withAI?'컴퓨터와 놀이 시작 🤖':'놀이 시작 🎉';
   $('waitMsg').textContent=isHost
-    ?(ok?(withAI?'상대가 오면 언제든 함께 시작해도 좋아요.':'')
-        :'두 팀 모두 1명 이상 있거나, 컴퓨터가 맡도록 해주세요')
-    :'방장이 시작하길 기다리는 중이에요…';
+    ?(ok?(withAI?'상대가 오면 함께 시작해도 좋아요':'')
+        :'두 팀에 사람이 있거나, 컴퓨터가 맡아야 해요')
+    :'방장이 시작하길 기다리는 중…';
 }
 $('aiFill').addEventListener('change',renderRoom);
 
@@ -2495,7 +2487,7 @@ $('exitBtn').addEventListener('click',()=>{
   const msg=solo?'연습을 그만할까요?'
     :spectating?'관전을 그만할까요?'
     :(S&&S.winner===null&&room&&room.status==='playing')
-      ?'지금 나가면 우리 팀에 아무도 없을 경우 상대 팀 승리로 끝나요. 나갈까요?'
+      ?'우리 팀에 아무도 안 남으면 상대 팀 승리로 끝나요. 나갈까요?'
       :'방에서 나갈까요?';
   if(confirm(msg))leaveRoom();
 });
@@ -2576,7 +2568,7 @@ async function refreshOpenRooms(){
   $('roomCount').textContent=roomsCache.length?roomsCache.length+'개':'';
   $('liveRooms').textContent=roomsCache.length;
   if(!roomsCache.length){
-    box.innerHTML='<div class="emptyBox"><span class="ee">🫙</span>아직 열린 방이 없어요.<br>위의 <b>방 만들기</b>로 첫 방을 열어 보세요!</div>';
+    box.innerHTML='<div class="emptyBox"><span class="ee">🫙</span>아직 열린 방이 없어요.<br>첫 방을 열어 보세요!</div>';
     return;
   }
   const {data:ps}=await sb.from('players').select('room_id,user_id,nickname,avatar')
@@ -2598,7 +2590,7 @@ async function refreshOpenRooms(){
     const nm=document.createElement('div');nm.className='rName';
     nm.textContent=(host?host.nickname+' 님의 방':'놀이방')+(r.host===myUid?' (내 방)':'');
     const sub=document.createElement('div');sub.className='rSub';
-    sub.textContent='👥 '+mem.length+'명'+(r.status==='playing'?' · 관전할 수 있어요':r.status==='waiting'?' · 눌러서 참가':' · 눌러서 참가');
+    sub.textContent='👥 '+mem.length+'명 · '+(r.status==='playing'?'관전 가능':'눌러서 참가');
     inf.appendChild(nm);inf.appendChild(sub);
     it.appendChild(inf);
     const tg=document.createElement('span');tg.className='tag '+tag.cls;tg.textContent=tag.txt;
@@ -2722,22 +2714,17 @@ async function renderOnline(){
 /* ================= 프로필 · 로그인 ================= */
 function renderAcct(){
   pMap[myUid]={name:myProfile.nickname,avatar:myProfile.avatar};
-  setAvatarInto($('acctAv'),myUid,44);
-  $('acctName').textContent=myProfile.nickname||'이름을 정해 주세요';
-  $('acctKind').textContent=isGuest
-    ?'게스트로 놀는 중 · 이 기기에만 저장돼요'
-    :'✅ '+(myLoginId?myLoginId:'로그인됨')+' · 어느 기기에서나 그대로';
-  $('authBtn').textContent=isGuest?'🔑 로그인':'🚪 로그아웃';
-  $('profLogout').style.display=isGuest?'none':'';
+  setAvatarInto($('acctAv'),myUid,40);
+  $('acctKind').textContent=isGuest?'게스트 · 이 기기에만 저장':'✅ '+(myLoginId||'로그인됨');
+  $('authBtn').textContent=isGuest?'🔑 로그인 · 가입':'🚪 로그아웃';
 }
 async function doLogout(){
-  if(!confirm('로그아웃할까요?\n다시 로그인하면 이름과 사진이 그대로 돌아와요.'))return;
+  if(!confirm('로그아웃할까요?'))return;
   try{await sb.auth.signOut();}catch(e){}
   localStorage.removeItem('yut_room');
   localStorage.removeItem('yut_nick');
   location.href=location.pathname;
 }
-$('profLogout').addEventListener('click',doLogout);
 async function loadProfile(){
   let p=null;
   try{
@@ -2863,6 +2850,7 @@ $('tabSignup').addEventListener('click',()=>setAuthMode('signup'));
 $('authClose').addEventListener('click',()=>{$('authDlg').style.display='none';});
 $('authBtn').addEventListener('click',()=>{
   if(!isGuest){doLogout();return;}
+  $('profDlg').style.display='none';
   setAuthMode('login');
   $('authId').value='';
   $('authPw').value='';
@@ -2969,7 +2957,7 @@ $('createBtn').addEventListener('click',async()=>{
 
   if(!restored){
     showLobbyScreen();
-    if(roomGone)miniToast('🏠 있던 방이 사라져서 로비로 왔어요');
+    if(roomGone)miniToast('🏠 방이 사라져 로비로 왔어요');
     refreshOpenRooms();
     // 링크로 들어온 경우 해당 방으로 바로 이동
     const joinCode=new URLSearchParams(location.search).get('join');
