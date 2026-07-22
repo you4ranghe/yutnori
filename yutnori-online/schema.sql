@@ -36,6 +36,8 @@ create table if not exists public.players (
   unique (room_id, user_id)
 );
 alter table public.players add column if not exists avatar text;
+-- role: player(놀이 참가) | spectator(관전). 관전자도 기록해야 대화를 볼 수 있다.
+alter table public.players add column if not exists role text not null default 'player';
 
 -- ---------- 채팅 ----------
 create table if not exists public.messages (
@@ -61,7 +63,9 @@ create policy rooms_select    on public.rooms    for select to authenticated usi
 drop policy if exists players_select  on public.players;
 create policy players_select  on public.players  for select to authenticated using (true);
 drop policy if exists messages_select on public.messages;
-create policy messages_select on public.messages for select to authenticated using (true);
+create policy messages_select on public.messages for select to authenticated
+  using (exists (select 1 from public.players p
+                  where p.room_id = messages.room_id and p.user_id = auth.uid()));
 
 -- ---------- Realtime 발행 ----------
 do $$
@@ -84,7 +88,8 @@ language sql stable security definer set search_path = public as $$
   select r.host = auth.uid()
       or ( r.updated_at < now() - interval '25 seconds'
            and exists (select 1 from players
-                        where room_id = r.id and user_id = auth.uid()) )
+                        where room_id = r.id and user_id = auth.uid()
+                          and role = 'player') )
 $$;
 
 -- ---------- 헬퍼: 현재 차례인 플레이어의 uid ----------
@@ -156,8 +161,8 @@ begin
   end loop;
 
   insert into rooms (code, host) values (v_code, auth.uid()) returning id into v_room;
-  insert into players (room_id, user_id, nickname, team, avatar)
-       values (v_room, auth.uid(), v_nick, 0, (select avatar from profiles where id = auth.uid()));
+  insert into players (room_id, user_id, nickname, team, avatar, role)
+       values (v_room, auth.uid(), v_nick, 0, (select avatar from profiles where id = auth.uid()), 'player');
 
   return jsonb_build_object('room_id', v_room, 'code', v_code);
 end $$;
@@ -185,26 +190,46 @@ begin
   if exists (select 1 from players where room_id = r.id and user_id = auth.uid()) then
     update players set nickname = v_nick, avatar = v_av
      where room_id = r.id and user_id = auth.uid();
+    if r.status = 'waiting' then
+      update players set role = 'player' where room_id = r.id and user_id = auth.uid();
+    end if;
     update rooms set updated_at = now() where id = r.id;
     return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
   end if;
 
   -- 진행 중인 게임에는 참가할 수 없음 (관전만 가능)
   if r.status = 'playing' then raise exception '게임이 진행 중이라 관전만 할 수 있어요'; end if;
-  if (select count(*) from players where room_id = r.id) >= 12 then
+  if (select count(*) from players where room_id = r.id and role = 'player') >= 12 then
     raise exception '정원(12명)이 가득 찼어요';
   end if;
 
   -- 인원이 적은 팀으로 자동 배정 (대기실에서 바꿀 수 있음)
   select case when count(*) filter (where team = 0) <= count(*) filter (where team = 1)
               then 0 else 1 end
-    into v_team from players where room_id = r.id;
+    into v_team from players where room_id = r.id and role = 'player';
 
-  insert into players (room_id, user_id, nickname, team, avatar)
-       values (r.id, auth.uid(), v_nick, v_team, v_av);
+  insert into players (room_id, user_id, nickname, team, avatar, role)
+       values (r.id, auth.uid(), v_nick, v_team, v_av, 'player');
   update rooms set updated_at = now() where id = r.id;
 
   return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
+end $$;
+
+-- ---------- 관전자로 들어가기 ----------
+-- 관전자도 한 줄 기록해 둬야 그 방 대화를 볼 수 있고, 몇 명이 보는지도 셀 수 있다.
+create or replace function public.watch_room(p_room_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_nick text; v_av text;
+begin
+  if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+  if not exists (select 1 from rooms where id = p_room_id) then return; end if;
+  -- 이미 참가자라면 관전자로 낮추지 않는다
+  if exists (select 1 from players where room_id = p_room_id and user_id = auth.uid()
+              and role = 'player') then return; end if;
+  select nickname, avatar into v_nick, v_av from profiles where id = auth.uid();
+  insert into players (room_id, user_id, nickname, team, avatar, role)
+       values (p_room_id, auth.uid(), coalesce(v_nick,'구경꾼'), -1, v_av, 'spectator')
+  on conflict (room_id, user_id) do update set nickname = excluded.nickname, avatar = excluded.avatar;
 end $$;
 
 -- ---------- 팀 바꾸기 (대기 중에만) ----------
@@ -212,7 +237,7 @@ create or replace function public.set_team(p_room_id uuid, p_team int)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if p_team not in (0, 1) then raise exception '잘못된 팀이에요'; end if;
-  update players set team = p_team
+  update players set team = p_team, role = 'player'
    where room_id = p_room_id and user_id = auth.uid()
      and exists (select 1 from rooms where id = p_room_id and status = 'waiting');
   update rooms set updated_at = now() where id = p_room_id;
@@ -227,7 +252,7 @@ begin
   if not found then raise exception '방을 찾을 수 없어요'; end if;
   if r.host <> auth.uid() then raise exception '방장만 시작할 수 있어요'; end if;
   -- 사람이 한 명이라도 있으면 시작 가능 (빈 팀은 컴퓨터가 맡을 수 있음)
-  if not exists (select 1 from players where room_id = p_room_id) then
+  if not exists (select 1 from players where room_id = p_room_id and role = 'player') then
     raise exception '참가자가 없어요';
   end if;
 
@@ -412,15 +437,22 @@ declare
   n1      int;
   was_turn boolean := false;
   v_nick  text;
+  v_role  text;
   v_host  uuid;
 begin
   select * into r from rooms where id = p_room_id for update;
   if not found then return; end if;
 
-  -- 관전자는 참가자 목록에 없으므로 아무것도 바꾸지 않음
-  select nickname into v_nick from players
+  select nickname, role into v_nick, v_role from players
    where room_id = p_room_id and user_id = auth.uid();
   if v_nick is null then return; end if;
+
+  -- 관전자는 게임에 끼어 있지 않으므로 자기 기록만 지운다
+  if v_role = 'spectator' then
+    delete from players where room_id = p_room_id and user_id = auth.uid();
+    update rooms set updated_at = now() where id = p_room_id;
+    return;
+  end if;
 
   -- 대기 중: 방장이 나가면 방 자체를 닫음
   if r.status = 'waiting' then
@@ -429,7 +461,7 @@ begin
       return;
     end if;
     delete from players where room_id = p_room_id and user_id = auth.uid();
-    if not exists (select 1 from players where room_id = p_room_id) then
+    if not exists (select 1 from players where room_id = p_room_id and role = 'player') then
       delete from rooms where id = p_room_id;
     end if;
     return;
@@ -484,13 +516,13 @@ begin
   -- 방장이 나갔으면 남은 사람 중 가장 먼저 들어온 사람이 방장을 이어받음
   if r.host = auth.uid() then
     select user_id into v_host from players
-     where room_id = p_room_id order by joined_at limit 1;
+     where room_id = p_room_id and role = 'player' order by joined_at limit 1;
     if v_host is not null then
       update rooms set host = v_host where id = p_room_id;
     end if;
   end if;
 
-  if not exists (select 1 from players where room_id = p_room_id) then
+  if not exists (select 1 from players where room_id = p_room_id and role = 'player') then
     delete from rooms where id = p_room_id;
   end if;
 end $$;
@@ -501,6 +533,7 @@ grant execute on function
   public.save_profile(text, text),
   public.create_room(text),
   public.join_room(text, text),
+  public.watch_room(uuid),
   public.set_team(uuid, int),
   public.start_game(uuid, jsonb),
   public.throw_sticks(uuid),
