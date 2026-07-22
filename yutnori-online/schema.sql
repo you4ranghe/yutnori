@@ -76,6 +76,17 @@ end $$;
 create or replace function public._ai_uid() returns uuid
 language sql immutable as $$ select '00000000-0000-0000-0000-00000000c0de'::uuid $$;
 
+-- ---------- 헬퍼: 방장이 응답이 없을 때 남은 참가자가 대신 진행해도 되는가 ----------
+-- 방장이 창을 그냥 닫으면 아무도 컴퓨터를 두거나 차례를 넘길 수 없어 게임이 멈춘다.
+-- 마지막 진행이 25초 넘게 없으면 그 방 참가자 누구나 진행을 이어받을 수 있게 한다.
+create or replace function public._may_run(r rooms) returns boolean
+language sql stable security definer set search_path = public as $$
+  select r.host = auth.uid()
+      or ( r.updated_at < now() - interval '25 seconds'
+           and exists (select 1 from players
+                        where room_id = r.id and user_id = auth.uid()) )
+$$;
+
 -- ---------- 헬퍼: 현재 차례인 플레이어의 uid ----------
 create or replace function public._thrower(st jsonb) returns uuid
 language sql immutable as $$
@@ -240,7 +251,7 @@ begin
   v_turn := _thrower(st);
   -- 내 차례이거나, 컴퓨터 차례를 방장이 대신 진행하는 경우만 허용
   if v_turn is distinct from auth.uid()
-     and not (v_turn = _ai_uid() and r.host = auth.uid()) then
+     and not (v_turn = _ai_uid() and _may_run(r)) then
     raise exception '지금은 내 차례가 아니에요';
   end if;
   if st->>'phase' <> 'throw' or (st->>'throwsLeft')::int <= 0 then
@@ -251,6 +262,53 @@ begin
   -- 윷가락 4개: true=배(평평한 면 위), 원본 게임과 같은 확률(57%)
   select jsonb_agg(random() < 0.57) into v_faces from generate_series(1, 4);
   return jsonb_build_object('faces', v_faces);
+end $$;
+
+-- ---------- 상태 검증 ----------
+-- 클라이언트가 보낸 상태가 이전 상태에서 나올 수 있는 모양인지 확인한다.
+-- 이동 규칙 전체를 서버에서 다시 계산하지는 않지만,
+-- 참가자·말 개수·놀이 설정을 바꾸거나 거짓으로 이겼다고 하는 것은 막는다.
+create or replace function public._check_state(st jsonb, ns jsonb) returns void
+language plpgsql immutable as $$
+declare
+  ti     int;
+  n_old  int;
+  n_new  int;
+  w      int;
+begin
+  if ns->>'gid' is distinct from st->>'gid' then
+    raise exception '다른 놀이의 상태예요';
+  end if;
+  if (ns->'backdo') is distinct from (st->'backdo')
+     or (ns->'special') is distinct from (st->'special') then
+    raise exception '놀이 설정은 도중에 바꿀 수 없어요';
+  end if;
+
+  for ti in 0..1 loop
+    if (ns->'teams'->ti->'players') is distinct from (st->'teams'->ti->'players') then
+      raise exception '참가자 정보는 바꿀 수 없어요';
+    end if;
+    if jsonb_array_length(ns->'teams'->ti->'pieces')
+       is distinct from jsonb_array_length(st->'teams'->ti->'pieces') then
+      raise exception '말 개수는 바꿀 수 없어요';
+    end if;
+    -- 완주한 말은 다시 줄어들 수 없다
+    select count(*) into n_old from jsonb_array_elements(st->'teams'->ti->'pieces') e
+      where (e.value->>'done')::boolean;
+    select count(*) into n_new from jsonb_array_elements(ns->'teams'->ti->'pieces') e
+      where (e.value->>'done')::boolean;
+    if n_new < n_old then raise exception '완주 기록을 되돌릴 수 없어요'; end if;
+  end loop;
+
+  -- 이겼다고 하려면 그 팀 말이 실제로 전부 완주해 있어야 한다
+  if ns->'winner' <> 'null'::jsonb then
+    w := (ns->>'winner')::int;
+    if w not in (0,1) then raise exception '잘못된 승리 표시예요'; end if;
+    if exists (select 1 from jsonb_array_elements(ns->'teams'->w->'pieces') e
+                where not coalesce((e.value->>'done')::boolean,false)) then
+      raise exception '아직 이긴 상태가 아니에요';
+    end if;
+  end if;
 end $$;
 
 -- ---------- 상태 저장: 현재 차례인 사람만 가능 ----------
@@ -267,10 +325,11 @@ begin
   if st is null then raise exception '진행 중인 게임이 아니에요'; end if;
   v_turn := _thrower(st);
   if v_turn is distinct from auth.uid()
-     and not (v_turn = _ai_uid() and r.host = auth.uid()) then
+     and not (v_turn = _ai_uid() and _may_run(r)) then
     raise exception '지금은 내 차례가 아니에요';
   end if;
   if (p_state->>'ver')::int <= (st->>'ver')::int then raise exception '오래된 상태예요'; end if;
+  perform _check_state(st, p_state);
 
   update rooms
      set game_state = p_state,
@@ -286,7 +345,8 @@ declare r rooms%rowtype;
 begin
   select * into r from rooms where id = p_room_id for update;
   if not found then raise exception '방을 찾을 수 없어요'; end if;
-  if r.host <> auth.uid() then raise exception '방장만 할 수 있어요'; end if;
+  if not _may_run(r) then raise exception '방장만 할 수 있어요'; end if;
+  if r.game_state is not null then perform _check_state(r.game_state, p_state); end if;
   update rooms set game_state = p_state, updated_at = now() where id = p_room_id;
 end $$;
 

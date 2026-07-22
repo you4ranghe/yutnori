@@ -344,6 +344,12 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 }
 
 /* ---------- 안내 배너 ---------- */
+#netBar{
+  display:none;align-items:center;gap:9px;
+  background:rgba(255,90,110,.12);border:1px solid var(--coral);color:var(--coral-d);
+  border-radius:var(--r-md);padding:12px 13px;margin-bottom:11px;font-size:13.5px;font-weight:800;
+}
+#netBar.on{display:flex}
 #specBar,#roomAlert,#joinAlert{
   display:none;align-items:center;gap:9px;flex-wrap:wrap;
   border-radius:var(--r-md);padding:12px 13px;margin-bottom:11px;
@@ -717,6 +723,8 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <button class="miniBtn" id="jaLater">나중에</button>
   </div>
 
+  <div id="netBar">📡 <span>연결이 끊겼어요 — 다시 잇는 중…</span></div>
+
   <div id="specBar">👀 <span id="specText">관전 중</span></div>
 
   <!-- ===== 방 화면 (놀이 시작 전) ===== -->
@@ -1038,8 +1046,23 @@ function isMyTurn(){
 }
 function curPlayer(){if(!S)return null;const T=S.teams[S.cur];return T.players[T.pIdx]||null;}
 function aiTurn(){const p=curPlayer();return !!p&&p.uid===AI_UID&&(!S||S.winner===null);}
-/* 컴퓨터는 딱 한 사람만 대신 진행해야 한다 — 연습이면 나, 온라인이면 방장 */
-function iDriveAI(){return solo||(!!room&&!spectating&&room.host===myUid);}
+/* 마지막 진행 이후 흐른 시간 — 방장이 사라졌는지 판단하는 데 쓴다 */
+function stuckMs(){
+  if(!room||!room.updated_at)return 0;
+  const t=new Date(room.updated_at).getTime();
+  return isNaN(t)?0:Date.now()-t;
+}
+/* 방장이 창을 닫아 버리면 아무도 진행시킬 수 없으므로,
+   25초 넘게 멈춰 있으면 먼저 들어온 참가자가 이어받는다 (서버도 같은 기준으로 허용) */
+function isDeputy(){
+  if(!room||spectating||room.host===myUid)return false;
+  if(stuckMs()<26000)return false;
+  const cand=playersRows.filter(p=>p.user_id!==room.host);
+  return cand.length>0&&cand[0].user_id===myUid;
+}
+function canRun(){return !!room&&!spectating&&(room.host===myUid||isDeputy());}
+/* 컴퓨터는 딱 한 사람만 대신 진행해야 한다 — 연습이면 나, 온라인이면 방장(없으면 대행) */
+function iDriveAI(){return solo||canRun();}
 function canAct(){return isMyTurn()||(aiTurn()&&iDriveAI());}
 function curPlayerName(){const p=curPlayer();return p?p.name:'?';}
 function teamIcon(ti){return (S&&S.teams[ti]&&S.teams[ti].icon)||TEAM_ICON[ti];}
@@ -2301,7 +2324,7 @@ function updateUI(){
     (mine?'결과를 고른 뒤, 반짝이는 말을 누르세요':cName+' 님이 말을 옮기고 있어요');
 
   $('skipBtn').style.display=
-    (!solo&&!spectating&&!ai&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
+    (!solo&&!spectating&&!ai&&canRun()&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
   if($('pickDlg').style.display==='flex'&&!pickAtStart())closePick();
   $('specBar').classList.toggle('on',spectating);
   if(spectating)$('specText').textContent='관전 중';
@@ -2451,7 +2474,7 @@ function tickTimer(){
   if(isMyTurn()){
     if(autoDone===k)return;
     autoDone=k;autoAct();
-  }else if(!spectating&&room&&myUid===room.host&&left<=-HOST_GRACE){
+  }else if(!spectating&&canRun()&&left<=-HOST_GRACE){
     if(skipDone===k)return;
     skipDone=k;hostSkip(true);
   }
@@ -2491,7 +2514,7 @@ function maybeAI(){
         },450);
       }
     }
-  },850);
+  },(room&&room.host!==myUid&&!solo)?4000:850);
 }
 
 /* ================= 동기화 ================= */
@@ -2531,14 +2554,56 @@ async function pushState(evBase){
 
 async function resync(){
   if(!room)return;
-  const {data}=await sb.from('rooms').select('*').eq('id',room.id).maybeSingle();
-  if(!data){backToLobby('방이 닫혔어요');return;}
+  const {data,error}=await sb.from('rooms').select('*').eq('id',room.id).maybeSingle();
+  if(error){netDown();return;}
+  netUp();
+  if(!data){backToLobby('🏠 방이 닫혔어요');return;}
   room=data;
   if(data.status==='waiting'){showWaiting();return;}
   if(data.game_state)hardAdopt(data.game_state);
 }
 
+/* ================= 연결 상태 ================= */
+/* 실시간 연결은 지하철·엘리베이터에서 쉽게 끊긴다.
+   끊긴 것을 알려 주고, 주기적으로 서버와 맞춰 스스로 회복한다. */
+let netOK=true,netPolling=false;
+function netUp(){
+  if(netOK)return;
+  netOK=true;$('netBar').classList.remove('on');
+  miniToast('📡 다시 연결됐어요');
+}
+function netDown(){
+  if(!netOK)return;
+  netOK=false;$('netBar').classList.add('on');
+}
+function onChannelStatus(st){
+  if(st==='SUBSCRIBED'){netUp();netSync(true);}
+  else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'||st==='CLOSED')netDown();
+}
+/* 놓친 소식이 있는지 서버와 맞춰 본다 (실시간이 끊겨도 게임이 이어지도록) */
+async function netSync(force){
+  if(!room||solo||netPolling)return;
+  netPolling=true;
+  try{
+    const {data,error}=await sb.from('rooms').select('*').eq('id',room.id).maybeSingle();
+    if(error)throw error;
+    netUp();
+    if(!data){backToLobby('🏠 방이 닫혔어요');return;}
+    const sv=data.game_state?(data.game_state.ver||0):0;
+    const lv=S?(S.ver||0):-1;
+    if(force||data.status!==room.status||sv>lv){
+      onRoomRow(data);
+      await refreshPlayers();
+      if(force)await loadChat();
+    }else room=data;
+  }catch(e){netDown();}
+  netPolling=false;
+}
+setInterval(()=>{if(room&&!solo)netSync(false);},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&room&&!solo)netSync(true);});
+
 function onRoomRow(row){
+  netUp();
   room=row;
   if(row.status==='waiting'){
     // 놀이를 끝내고 대기방으로 돌아온 경우 정리
@@ -2604,7 +2669,7 @@ function hardAdopt(st){
 function maybeWin(){if(S&&S.winner!==null&&!winShown)showWinner();}
 
 async function hostSkip(auto){
-  if(!S||!room||solo||spectating||myUid!==room.host||isMyTurn()||S.winner!==null||MA||S.busy)return;
+  if(!S||!room||solo||spectating||!canRun()||isMyTurn()||S.winner!==null||MA||S.busy)return;
   if(!auto&&!confirm(curPlayerName()+' 님의 차례를 넘길까요?'))return;
   const who=curPlayerName();
   endTurn();
@@ -2776,6 +2841,7 @@ async function enterRoom(row,spectate){
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'room_id=eq.'+row.id},
         p=>addChat(p.new))
     .subscribe(st=>{
+      onChannelStatus(st);
       if(st==='SUBSCRIBED')
         channel.track({uid:myUid,name:myProfile.nickname}).catch(()=>{});
     });
