@@ -1007,7 +1007,8 @@ function computeDest(startNode, steps, exact){
 const DIST_MEMO={};
 function distToExit(n){
   if(n==='EXIT')return 0;
-  if(n===null||n===undefined)return 24;
+  // 아직 안 나온 말: 한 걸음 뒤 1번 칸에서 시작하므로 그만큼을 더한다
+  if(n===null||n===undefined)return 1+distToExit(1);
   if(DIST_MEMO[n]!=null)return DIST_MEMO[n];
   let d=0,node=n;
   while(node!=='EXIT'&&d<45){node=computeDest(node,1,false).dest;d++;}
@@ -1280,8 +1281,7 @@ function scoreMove(chip,tg){
     if(dest===SP_NODE['잉태']&&T.pieces.some(p=>p.node===null&&!p.done))s+=260;
     if(dest===SP_NODE['지옥'])s-=900*movers;
   }
-  const d0=(from===null)?distToExit(0)+1:distToExit(from);
-  s+=(d0-distToExit(dest))*22*Math.max(1,movers);
+  s+=(distToExit(from)-distToExit(dest))*22*Math.max(1,movers);
   if(tg.type==='enter')s+=12;
   return s;
 }
