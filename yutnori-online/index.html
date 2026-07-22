@@ -207,6 +207,20 @@ header .sub{font-size:12.5px;color:var(--sub);line-height:1.35}
   border-radius:16px;padding:11px 12px;margin-bottom:10px;font-size:14px;font-weight:600;
 }
 #roomAlert.on{display:flex}
+#joinAlert{
+  display:none;align-items:center;gap:9px;flex-wrap:wrap;
+  background:linear-gradient(120deg,#e6ffe9,#f6fff7);border:1.5px solid var(--green);
+  border-radius:16px;padding:11px 12px;margin-bottom:10px;font-size:14px;font-weight:700;
+  box-shadow:0 4px 14px rgba(52,168,83,.18);
+}
+#joinAlert.on{display:flex}
+.miniBtn.strong{background:var(--green);color:#fff;border-color:var(--green-d)}
+#backRoomBar{
+  width:100%;min-height:48px;border-radius:16px;margin-bottom:10px;
+  background:#fff6e0;border:1.5px solid var(--gold);color:#8a5600;
+  font-size:14.5px;font-weight:600;
+}
+#backRoomBar:active{transform:translateY(1px);filter:brightness(.97)}
 
 /* ---------- board ---------- */
 #boardWrap{position:relative;margin-bottom:12px}
@@ -477,7 +491,14 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
     <button class="miniBtn" id="raX">✕</button>
   </div>
 
-  <div id="specBar">👀 <span>관전 중이에요 — 구경만 할 수 있어요</span></div>
+  <div id="joinAlert">
+    <span style="font-size:20px">🙋</span>
+    <span id="jaText" style="flex:1;min-width:0">누군가 들어왔어요!</span>
+    <button class="miniBtn strong" id="jaGo">🏠 대기방으로</button>
+    <button class="miniBtn" id="jaLater">나중에</button>
+  </div>
+
+  <div id="specBar">👀 <span id="specText">관전 중이에요 — 구경만 할 수 있어요</span></div>
 
   <!-- ===== 방 화면 (놀이 시작 전) ===== -->
   <section id="roomPanel" class="hidden">
@@ -522,6 +543,7 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
 
   <!-- ===== 놀이 화면 ===== -->
   <section id="gamePanel" class="hidden">
+  <button id="backRoomBar" style="display:none">🏠 컴퓨터와 그만하고 <b>대기방으로 돌아가기</b></button>
   <div id="turnBanner" aria-live="polite">
     <div id="turnBadge">🎲</div>
     <div style="min-width:0">
@@ -681,6 +703,7 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
     <div id="winSub"></div>
     <button id="againBtn" class="primaryBtn">🎉 새 놀이 시작</button>
     <div class="hint" id="againMsg" style="display:none">방장이 새 놀이를 시작할 수 있어요</div>
+    <button id="winBackBtn" class="ghostBtn" style="display:none">🏠 대기방으로 돌아가기</button>
     <button id="winLeaveBtn" class="ghostBtn">🚪 나가기</button>
   </div>
 </div>
@@ -1167,6 +1190,7 @@ function showWinner(){
   const canRestart=solo||(!spectating&&room&&myUid===room.host);
   $('againBtn').style.display=canRestart?'':'none';
   $('againMsg').style.display=canRestart?'none':'';
+  $('winBackBtn').style.display=(!solo&&!spectating&&room&&myUid===room.host)?'':'none';
   $('winOverlay').classList.add('show');
   const iWon=solo?S.winner===0:S.teams[S.winner].players.some(p=>p.uid===myUid);
   if(iWon||spectating)sfx.win();else sfx.lose();
@@ -1549,6 +1573,9 @@ function updateUI(){
   $('skipBtn').style.display=
     (!solo&&!spectating&&!ai&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
   $('specBar').classList.toggle('on',spectating);
+  if(spectating)$('specText').textContent='관전 중이에요 — 구경만 할 수 있어요';
+  $('backRoomBar').style.display=
+    (!solo&&!spectating&&room&&myUid===room.host&&S.winner===null&&gameHasAI())?'':'none';
 
   const btn=$('throwBtn');
   const canThrow=mine&&S.phase==='throw'&&S.throwsLeft>0&&!S.busy&&!MA&&S.winner===null;
@@ -1757,7 +1784,16 @@ async function resync(){
 
 function onRoomRow(row){
   room=row;
-  if(row.status==='waiting'){showWaiting();return;}
+  if(row.status==='waiting'){
+    // 놀이를 끝내고 대기방으로 돌아온 경우 정리
+    if(S){
+      S=null;MA=null;stateQ.length=0;winShown=false;
+      $('winOverlay').classList.remove('show');
+      if(aiTimer){clearTimeout(aiTimer);aiTimer=null;}
+    }
+    $('joinAlert').classList.remove('on');
+    showWaiting();return;
+  }
   const st=row.game_state;
   if(!st)return;
   if(!S||st.gid!==S.gid){hardAdopt(st);return;}
@@ -1919,6 +1955,45 @@ function showLobbyScreen(){
   $('lobbyScreen').classList.remove('hidden');
 }
 
+/* ================= 컴퓨터와 놀다가 사람이 들어왔을 때 ================= */
+let roomPresReady=false;
+function gameHasAI(){
+  return !!S&&S.teams.some(t=>t.players.some(p=>p.uid===AI_UID));
+}
+function inGame(uid){
+  return !!S&&S.teams.some(t=>t.players.some(p=>p.uid===uid));
+}
+function onRoomPresJoin(list){
+  // 방장이 컴퓨터와 놀고 있을 때, 새로 들어온 사람을 알려 준다
+  if(!roomPresReady||!room||solo||spectating)return;
+  if(myUid!==room.host)return;
+  if(!S||S.winner!==null||!gameHasAI())return;
+  const fresh=(list||[]).filter(p=>p&&p.uid&&p.uid!==myUid&&!inGame(p.uid));
+  if(!fresh.length)return;
+  const nm=fresh[0].name||'누군가';
+  $('jaText').textContent=nm+' 님이 들어왔어요! 컴퓨터와의 놀이를 끝내고 함께 놀까요?';
+  $('joinAlert').classList.add('on');
+  sfx.join();buzz([30,40,30]);
+  miniToast('🙋 '+nm+' 님이 들어왔어요');
+}
+async function reopenRoom(){
+  if(!room||myUid!==room.host)return;
+  $('joinAlert').classList.remove('on');
+  if(aiTimer){clearTimeout(aiTimer);aiTimer=null;}   // 컴퓨터가 한 수 더 두지 않도록
+  const {error}=await sb.rpc('reopen_room',{p_room_id:room.id});
+  if(error){miniToast('⚠️ '+errMsg(error));return;}
+  miniToast('🏠 대기방으로 돌아왔어요');
+}
+$('jaGo').addEventListener('click',reopenRoom);
+$('jaLater').addEventListener('click',()=>$('joinAlert').classList.remove('on'));
+$('backRoomBar').addEventListener('click',()=>{
+  if(confirm('컴퓨터와의 놀이를 끝내고 대기방으로 돌아갈까요?'))reopenRoom();
+});
+$('winBackBtn').addEventListener('click',()=>{
+  $('winOverlay').classList.remove('show');
+  reopenRoom();
+});
+
 /* ================= 방 입장 ================= */
 async function enterRoom(row,spectate){
   solo=false;spectating=!!spectate;
@@ -1926,7 +2001,10 @@ async function enterRoom(row,spectate){
   room=row;
   localStorage.setItem('yut_room',JSON.stringify({id:row.id,spec:!!spectate}));
   if(channel)sb.removeChannel(channel);
-  channel=sb.channel('room-'+row.id)
+  roomPresReady=false;
+  channel=sb.channel('room-'+row.id,{config:{presence:{key:myUid}}})
+    .on('presence',{event:'sync'},()=>{roomPresReady=true;})
+    .on('presence',{event:'join'},p=>onRoomPresJoin(p.newPresences))
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:'id=eq.'+row.id},
         p=>onRoomRow(p.new))
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'rooms'},
@@ -1937,7 +2015,10 @@ async function enterRoom(row,spectate){
         ()=>refreshPlayers())
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'room_id=eq.'+row.id},
         p=>addChat(p.new))
-    .subscribe();
+    .subscribe(st=>{
+      if(st==='SUBSCRIBED')
+        channel.track({uid:myUid,name:myProfile.nickname}).catch(()=>{});
+    });
   await refreshPlayers();
   await loadChat();
   showGameScreen();
@@ -1973,6 +2054,9 @@ function renderRoom(){
   const isHost=myUid===room.host;
   const aiFill=$('aiFill').checked;
   const cnt=[0,0];
+  const iAmIn=playersRows.some(p=>p.user_id===myUid);
+  $('specBar').classList.toggle('on',!iAmIn);
+  if(!iAmIn)$('specText').textContent='아직 구경만 하고 있어요 — 아래에서 팀을 고르면 함께 놀 수 있어요!';
   for(const ti of[0,1]){
     const box=$('pList'+ti);box.innerHTML='';
     const mem=playersRows.filter(p=>p.team===ti);
@@ -2012,13 +2096,26 @@ function renderRoom(){
 }
 $('aiFill').addEventListener('change',renderRoom);
 
+/* 팀 고르기 — 관전 중이었다면 먼저 방에 참가시킨다 */
+async function pickTeam(ti){
+  if(!room)return;
+  if(!playersRows.some(p=>p.user_id===myUid)){
+    const nick=myNick(); if(!nick)return;
+    const {error}=await sb.rpc('join_room',{p_code:room.code,p_nickname:nick});
+    if(error){miniToast('⚠️ '+errMsg(error));return;}
+    spectating=false;
+    localStorage.setItem('yut_room',JSON.stringify({id:room.id,spec:false}));
+    $('modeSub').innerHTML='🎮 함께 놀이 중';
+    $('specBar').classList.remove('on');
+    sfx.join();
+    miniToast('🙌 방에 참가했어요!');
+  }
+  const {error}=await sb.rpc('set_team',{p_room_id:room.id,p_team:ti});
+  if(error)miniToast('⚠️ '+errMsg(error));
+  await refreshPlayers();
+}
 document.querySelectorAll('.joinTeam').forEach(b=>{
-  b.addEventListener('click',async()=>{
-    if(!room)return;
-    const {error}=await sb.rpc('set_team',{p_room_id:room.id,p_team:parseInt(b.dataset.team,10)});
-    if(error)miniToast('⚠️ '+errMsg(error));
-    refreshPlayers();
-  });
+  b.addEventListener('click',()=>pickTeam(parseInt(b.dataset.team,10)));
 });
 
 $('wStartBtn').addEventListener('click',async()=>{

@@ -279,6 +279,19 @@ begin
   update rooms set game_state = p_state, updated_at = now() where id = p_room_id;
 end $$;
 
+-- ---------- 놀이를 끝내고 방을 다시 대기 상태로 (방장 전용) ----------
+-- 컴퓨터와 놀던 중 사람이 들어왔을 때, 함께 하려고 대기방으로 돌아가는 용도.
+create or replace function public.reopen_room(p_room_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare r rooms%rowtype;
+begin
+  select * into r from rooms where id = p_room_id for update;
+  if not found then raise exception '방을 찾을 수 없어요'; end if;
+  if r.host <> auth.uid() then raise exception '방장만 할 수 있어요'; end if;
+  update rooms set status = 'waiting', game_state = null, updated_at = now()
+   where id = p_room_id;
+end $$;
+
 -- ---------- 채팅 보내기 ----------
 create or replace function public.send_message(p_room_id uuid, p_text text)
 returns void language plpgsql security definer set search_path = public as $$
@@ -421,6 +434,7 @@ grant execute on function
   public.throw_sticks(uuid),
   public.push_state(uuid, jsonb),
   public.force_state(uuid, jsonb),
+  public.reopen_room(uuid),
   public.send_message(uuid, text),
   public.leave_room(uuid)
 to authenticated;
