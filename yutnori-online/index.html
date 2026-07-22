@@ -804,12 +804,12 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       <span id="rHostAv" style="display:flex;flex:none"></span>
       <div style="flex:1;min-width:0">
         <div class="rTitle" id="rTitle">놀이방</div>
-        <div class="rSub">친구가 로비에서 이 방을 눌러 들어와요 <span id="rWatch"></span></div>
+        <div class="rSub" id="rSub">친구가 로비에서 이 방을 눌러 들어와요 <span id="rWatch"></span></div>
       </div>
+      <button class="miniBtn" id="copyLinkBtn" title="이 방으로 바로 오는 링크">🔗 링크</button>
     </div>
 
     <div class="teamPick">
-      <button class="miniBtn" id="copyLinkBtn" style="margin-bottom:12px">🔗 초대 링크 복사</button>
       <button type="button" class="teamBox joinTeam" id="teamBox0" data-team="0">
         <span class="tHead">🐢 파란팀 <span class="cnt" id="cnt0"></span></span>
         <span class="pList" id="pList0"></span>
@@ -829,7 +829,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
         <label>말 개수
           <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
         </label>
-        <label><input type="checkbox" id="roomPrivate"> 🔒 <b>목록에 숨기기</b> — 링크를 아는 사람만</label>
+        <label><input type="checkbox" id="roomPrivate"> 🔒 <b>우리끼리만 놀기</b> — 링크 받은 사람만 들어와요</label>
         <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가</b> — 혼자여도 시작</label>
         <label>컴퓨터 실력
           <select id="aiLevel"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select>
@@ -3252,9 +3252,14 @@ function renderRoom(){
     $('go'+ti).textContent=isMine?'✓ 우리 팀':'이 팀으로 가기';
   }
 
+  // 방이 공개인지에 따라 안내 문구가 달라진다
+  const priv=room.private===true;
+  $('roomPrivate').checked=priv;
+  $('rSub').innerHTML=(priv
+    ?'🔒 우리끼리만 놀기 — <b>🔗 링크</b>를 눌러 친구에게 보내 주세요'
+    :'친구가 로비에서 이 방을 눌러 들어와요')+'<span id="rWatch"></span>';
   const wn=watcherRows().length;
-  $('rWatch').textContent=wn?'👀 관전 '+wn+'명':'';
-  $('roomPrivate').checked=room.private===true;
+  $('rWatch').textContent=wn?' · 👀 관전 '+wn+'명':'';
   $('hostOpts').style.display=isHost?'':'none';
   $('wStartBtn').style.display=isHost?'':'none';
   const withAI=aiFill&&(cnt[0]===0||cnt[1]===0);
@@ -3273,7 +3278,8 @@ $('roomPrivate').addEventListener('change',async()=>{
   const {error}=await sb.rpc('set_room_private',{p_room_id:room.id,p_private:on});
   if(error){miniToast('⚠️ '+errMsg(error));$('roomPrivate').checked=!on;return;}
   room.private=on;
-  miniToast(on?'🔒 목록에서 숨겼어요 — 링크로만 들어올 수 있어요':'🔓 목록에 다시 보여요');
+  renderRoom();
+  miniToast(on?'🔒 이제 링크를 받은 사람만 들어올 수 있어요':'🔓 이제 로비 목록에서 누구나 볼 수 있어요');
 });
 $('copyLinkBtn').addEventListener('click',async()=>{
   if(!room)return;

@@ -114,8 +114,8 @@ section('게임 규칙');
     out.pick0={선택가능:selectableNodes().includes(0),새말가능:canEnter(),고르기:pickAtStart()};
     /* 난이도 사다리 */
     const ladder=(a,b,n)=>{let wa=0,wb=0;for(let i=0;i<n;i++){const r=play({pieceCount:4,backdo:true,special:true},a,b);if(!r.err)(r.winner===0?wa++:wb++);}return wa/(wa+wb);};
-    out.hardVsNormal=ladder('hard','normal',300);
-    out.normalVsEasy=ladder('normal','easy',300);
+    out.hardVsNormal=ladder('hard','normal',800);
+    out.normalVsEasy=ladder('normal','easy',400);
     JSON.stringify(out);
   `);
   let r;
@@ -129,9 +129,10 @@ section('게임 규칙');
                              : bad('승률 치우침 ' + (bal * 100).toFixed(1) + '%');
     Object.values(r.pick0).every(Boolean) ? ok('출발·도착 칸 선택 동작')
                                           : bad('출발·도착 칸 선택 이상: ' + JSON.stringify(r.pick0));
-    r.hardVsNormal > 0.5 ? ok('어려움 > 보통 (' + (r.hardVsNormal * 100).toFixed(1) + '%)')
-                         : bad('어려움이 보통보다 약함 (' + (r.hardVsNormal * 100).toFixed(1) + '%)');
-    r.normalVsEasy > 0.55 ? ok('보통 > 쉬움 (' + (r.normalVsEasy * 100).toFixed(1) + '%)')
+    // 800판 기준 표준오차 약 1.8%p — 실력이 같지 않다면 이 선 아래로 잘 안 내려간다
+    r.hardVsNormal > 0.5 ? ok('어려움 > 보통 (' + (r.hardVsNormal * 100).toFixed(1) + '%, 800판)')
+                         : bad('어려움이 보통보다 약함 (' + (r.hardVsNormal * 100).toFixed(1) + '%) — 우연일 수 있으니 한 번 더 돌려 보세요');
+    r.normalVsEasy > 0.55 ? ok('보통 > 쉬움 (' + (r.normalVsEasy * 100).toFixed(1) + '%, 400판)')
                           : bad('보통이 쉬움보다 충분히 강하지 않음 (' + (r.normalVsEasy * 100).toFixed(1) + '%)');
   }
 }
