@@ -268,14 +268,14 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 .onChip .st{font-size:11px;color:var(--ink-3);font-weight:700}
 
 /* ---------- 방 화면 ---------- */
-.roomHead{display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:14px}
-.roomHead .rTitle{font-size:17px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roomHead{display:flex;align-items:center;gap:11px;padding:11px 12px;margin-bottom:10px}
+.roomHead .rTitle{font-size:16px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .roomHead .rSub{font-size:12.5px;color:var(--ink-2);margin-top:3px;font-weight:700;line-height:1.45}
 
-.teamPick{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:stretch;margin-bottom:14px}
+.teamPick{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;margin-bottom:10px}
 .teamBox{
-  background:var(--surface);border:1px solid var(--line);border-radius:22px;
-  padding:14px 12px;display:flex;flex-direction:column;gap:10px;
+  background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:12px 10px;display:flex;flex-direction:column;gap:8px;
   box-shadow:var(--sh-card);min-width:0;position:relative;overflow:hidden;
   text-align:left;font:inherit;color:inherit;cursor:pointer;
   transition:transform .07s,box-shadow .15s;
@@ -295,7 +295,7 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 #teamBox0::before{background:linear-gradient(90deg,var(--teal),var(--teal-l))}
 #teamBox1::before{background:linear-gradient(90deg,var(--coral),var(--coral-l))}
 .teamBox.mine{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,176,32,.28),var(--sh-card)}
-.teamBox .tHead{font-size:15px;font-weight:900;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.teamBox .tHead{font-size:14px;font-weight:900;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
 .teamBox .cnt{font-size:11.5px;color:var(--ink-3);font-weight:800}
 .teamBox .pList{flex:1;align-items:flex-start;align-content:flex-start;margin:0}
 
@@ -311,10 +311,44 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
   display:flex;align-items:center;justify-content:center;flex:none;
   box-shadow:0 6px 14px -6px rgba(20,23,51,.9);
 }
-.optCard{padding:15px}
-.optTitle{font-size:14px;font-weight:900;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.iconBtn{
+  flex:none;width:42px;height:42px;border-radius:14px;font-size:18px;
+  background:var(--surface-2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 var(--line-2);
+}
+.iconBtn:active{transform:translateY(2px);box-shadow:none}
+.optCard{padding:12px 13px}
+.optCard summary{
+  cursor:pointer;font-size:13.5px;font-weight:900;list-style:none;
+  display:flex;align-items:center;gap:7px;min-height:26px;
+}
+.optCard summary::-webkit-details-marker{display:none}
+.optCard summary::after{content:'▾';margin-left:auto;color:var(--ink-3);transition:transform .2s}
+.optCard[open] summary::after{transform:rotate(180deg)}
+.optCard[open] summary{margin-bottom:10px}
+.optTitle{font-size:13.5px;font-weight:900;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .optTitle .cnt{font-size:11.5px;color:var(--ink-3);font-weight:700}
-.waitNote{font-size:13px;color:var(--ink-2);text-align:center;margin-top:11px;min-height:20px;font-weight:700}
+/* 고르는 값 세 개를 한 줄에 */
+.setGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:9px}
+.setSel{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:800;color:var(--ink-3);min-width:0}
+.setSel select{
+  width:100%;min-height:44px;padding:0 8px;font-size:14px;font-weight:800;color:var(--ink);
+  border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);
+}
+/* 켜고 끄는 값은 눌러서 바뀌는 칩으로 */
+.setChips{display:flex;flex-wrap:wrap;gap:7px}
+.chipTog{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  padding:9px 13px;border-radius:999px;font-size:13px;font-weight:800;
+  border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-3);
+  transition:border-color .12s,background .12s,color .12s;
+}
+.chipTog input{position:absolute;opacity:0;width:0;height:0}
+.chipTog::before{content:'○';font-size:12px}
+.chipTog.on{border-color:var(--teal);background:rgba(0,194,168,.12);color:var(--teal-d)}
+.chipTog.on::before{content:'✓'}
+.chipTog:active{transform:translateY(1px)}
+.waitNote{font-size:12.5px;color:var(--ink-2);text-align:center;margin-top:8px;min-height:0;font-weight:700}
 
 /* ---------- 차례 표시줄 ---------- */
 #turnBanner{
@@ -666,7 +700,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 .primaryBtn.solo{background:linear-gradient(165deg,#FFC64D,var(--amber));color:#4A2C00;box-shadow:0 4px 0 var(--amber-d)}
 .primaryBtn.solo:not(:disabled):active{box-shadow:0 0 0 var(--amber-d)}
 .ghostBtn{
-  width:100%;min-height:46px;margin-top:10px;border-radius:16px;
+  width:100%;min-height:44px;margin-top:8px;border-radius:16px;
   color:var(--ink-2);font-size:13.5px;font-weight:800;
   border:1px solid var(--line);background:var(--surface);
 }
@@ -687,7 +721,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 }
 .miniBtn:active{transform:translateY(2px);box-shadow:none}
 .miniBtn.strong{background:linear-gradient(165deg,#5BE79F,var(--mint));color:#0B3D22;border-color:transparent;box-shadow:0 2px 0 var(--mint-d)}
-.pList{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;min-height:34px;align-items:center}
+.pList{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0;min-height:30px;align-items:center}
 .pList .pl{
   font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);
   border-radius:999px;padding:3px 11px 3px 3px;
@@ -804,9 +838,10 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       <span id="rHostAv" style="display:flex;flex:none"></span>
       <div style="flex:1;min-width:0">
         <div class="rTitle" id="rTitle">놀이방</div>
-        <div class="rSub" id="rSub">친구가 로비에서 이 방을 눌러 들어와요 <span id="rWatch"></span></div>
+        <div class="rSub" id="rSub">🌐 로비에 공개 중<span id="rWatch"></span></div>
       </div>
-      <button class="miniBtn" id="copyLinkBtn" title="이 방으로 바로 오는 링크">🔗 링크</button>
+      <button class="iconBtn" id="copyLinkBtn" title="초대 링크 복사" aria-label="초대 링크 복사">🔗</button>
+      <button class="iconBtn" id="leaveBtn" title="방 나가기" aria-label="방 나가기">🚪</button>
     </div>
 
     <div class="teamPick">
@@ -823,30 +858,30 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       </button>
     </div>
 
-    <div class="card optCard" id="hostOpts">
-      <div class="optTitle">⚙️ 놀이 설정 <span class="cnt">방장만</span></div>
-      <div class="optRow" style="margin-bottom:0">
-        <label>말 개수
+    <button id="wStartBtn" class="primaryBtn" style="min-height:56px">놀이 시작 🎉</button>
+    <div class="waitNote" id="waitMsg"></div>
+
+    <details class="card optCard" id="hostOpts" open>
+      <summary>⚙️ 놀이 설정</summary>
+      <div class="setGrid">
+        <label class="setSel">말 개수
           <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
         </label>
-        <label><input type="checkbox" id="roomPrivate"> 🔒 <b>우리끼리만 놀기</b> — 링크 받은 사람만 들어와요</label>
-        <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가</b> — 혼자여도 시작</label>
-        <label>컴퓨터 실력
+        <label class="setSel">컴퓨터 실력
           <select id="aiLevel"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select>
         </label>
-        <label>생각할 시간
-          <select id="turnSec"><option value="20" selected>20초</option><option value="30">30초</option><option value="60">60초</option><option value="0">제한 없음</option></select>
+        <label class="setSel">생각 시간
+          <select id="turnSec"><option value="20" selected>20초</option><option value="30">30초</option><option value="60">60초</option><option value="0">없음</option></select>
         </label>
-        <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 하나만 뒤집히면 뒤로 1칸)</label>
-        <label><input type="checkbox" id="specialOpt" checked> 특별칸 😇천국 · 👿지옥 · 🤰잉태</label>
       </div>
-    </div>
-
-    <button id="wStartBtn" class="primaryBtn" style="margin-top:14px">놀이 시작 🎉</button>
-    <div class="waitNote" id="waitMsg"></div>
-    <button id="leaveBtn" class="ghostBtn">🚪 방 나가기</button>
+      <div class="setChips">
+        <label class="chipTog"><input type="checkbox" id="backdoOpt" checked><span>빽도</span></label>
+        <label class="chipTog"><input type="checkbox" id="specialOpt" checked><span>특별칸 😇👿🤰</span></label>
+        <label class="chipTog"><input type="checkbox" id="aiFill" checked><span>🤖 컴퓨터 채우기</span></label>
+        <label class="chipTog"><input type="checkbox" id="roomPrivate"><span>🔒 우리끼리만</span></label>
+      </div>
+    </details>
   </section>
-
   <!-- ===== 놀이 화면 ===== -->
   <section id="gamePanel" class="hidden">
   <button id="backRoomBar" style="display:none">🏠 그만하고 <b>대기방으로</b></button>
@@ -3255,11 +3290,10 @@ function renderRoom(){
   // 방이 공개인지에 따라 안내 문구가 달라진다
   const priv=room.private===true;
   $('roomPrivate').checked=priv;
-  $('rSub').innerHTML=(priv
-    ?'🔒 우리끼리만 놀기 — <b>🔗 링크</b>를 눌러 친구에게 보내 주세요'
-    :'친구가 로비에서 이 방을 눌러 들어와요')+'<span id="rWatch"></span>';
+  $('rSub').innerHTML=(priv?'🔒 링크로만 참가':'🌐 로비에 공개 중')+'<span id="rWatch"></span>';
   const wn=watcherRows().length;
   $('rWatch').textContent=wn?' · 👀 관전 '+wn+'명':'';
+  syncChips();
   $('hostOpts').style.display=isHost?'':'none';
   $('wStartBtn').style.display=isHost?'':'none';
   const withAI=aiFill&&(cnt[0]===0||cnt[1]===0);
@@ -3267,10 +3301,17 @@ function renderRoom(){
   $('wStartBtn').disabled=!ok;
   $('wStartBtn').textContent=withAI?'컴퓨터와 놀이 시작 🤖':'놀이 시작 🎉';
   $('waitMsg').textContent=isHost
-    ?(ok?(withAI?'상대가 오면 함께 시작해도 좋아요':'')
-        :'두 팀에 사람이 있거나, 컴퓨터가 맡아야 해요')
+    ?(ok?'':'두 팀에 사람이 있어야 해요')
     :'방장이 시작하길 기다리는 중…';
 }
+function syncChips(){
+  document.querySelectorAll('.chipTog').forEach(l=>{
+    const i=l.querySelector('input');
+    if(i)l.classList.toggle('on',i.checked);
+  });
+}
+document.querySelectorAll('.chipTog input').forEach(i=>i.addEventListener('change',syncChips));
+syncChips();
 $('aiFill').addEventListener('change',renderRoom);
 $('roomPrivate').addEventListener('change',async()=>{
   if(!room||room.host!==myUid)return;
