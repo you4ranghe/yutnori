@@ -2008,7 +2008,7 @@ async function enterRoom(row,spectate){
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:'id=eq.'+row.id},
         p=>onRoomRow(p.new))
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'rooms'},
-        p=>{if(p.old&&p.old.id===row.id)backToLobby('방이 닫혔어요');})
+        p=>{if(p.old&&p.old.id===row.id)backToLobby('🏠 오랫동안 진행이 없어 방이 닫혔어요');})
     .on('postgres_changes',{event:'*',schema:'public',table:'players',filter:'room_id=eq.'+row.id},
         ()=>refreshPlayers())
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'players'},
@@ -2226,8 +2226,16 @@ function statusTag(st){
   if(st==='playing')return{cls:'play',txt:'놀이 중'};
   return{cls:'done',txt:'끝난 방'};
 }
+/* 1시간 넘게 진행이 없는 방 청소 — 로비를 볼 때마다(최대 1분에 한 번) 서버에 요청 */
+let lastCleanup=0;
+async function maybeCleanup(){
+  if(!sb||Date.now()-lastCleanup<60000)return;
+  lastCleanup=Date.now();
+  try{await sb.rpc('cleanup_rooms');}catch(e){console.warn('청소 실패',e);}
+}
 async function refreshOpenRooms(){
   if(!sb)return;
+  await maybeCleanup();
   const {data}=await sb.from('rooms').select('id,code,host,status,created_at')
     .order('created_at',{ascending:false}).limit(20);
   roomsCache=data||[];
@@ -2311,7 +2319,9 @@ async function notifyNewRoom(r){
   }catch(e){}
 }
 $('raX').addEventListener('click',()=>$('roomAlert').classList.remove('on'));
-$('refreshBtn').addEventListener('click',()=>{refreshOpenRooms();renderOnline();});
+$('refreshBtn').addEventListener('click',()=>{lastCleanup=0;refreshOpenRooms();renderOnline();});
+/* 로비에 머무는 동안 주기적으로 목록 갱신 + 오래된 방 청소 */
+setInterval(()=>{if(sb&&!room)refreshOpenRooms();},90000);
 
 let presenceWhere='로비';
 function trackPresence(where){
@@ -2607,8 +2617,8 @@ $('createBtn').addEventListener('click',async()=>{
   await loadProfile();
   subscribeLobby();
 
-  // 재접속: 이전에 있던 방이 살아 있으면 그대로 복귀
-  let restored=false;
+  // 재접속: 이전에 있던 방이 살아 있으면 그대로 복귀, 사라졌으면 로비로
+  let restored=false,roomGone=false;
   try{
     const saved=JSON.parse(localStorage.getItem('yut_room')||'null');
     if(saved&&saved.id){
@@ -2618,12 +2628,13 @@ $('createBtn').addEventListener('click',async()=>{
           .eq('room_id',row.id).eq('user_id',myUid).maybeSingle();
         if(me||saved.spec){await enterRoom(row,!me);restored=true;}
       }
-      if(!restored)localStorage.removeItem('yut_room');
+      if(!restored){localStorage.removeItem('yut_room');roomGone=true;}
     }
   }catch(e){console.warn(e);}
 
   if(!restored){
     showLobbyScreen();
+    if(roomGone)miniToast('🏠 있던 방이 사라져서 로비로 왔어요');
     refreshOpenRooms();
     // 링크로 들어온 경우 해당 방으로 바로 이동
     const joinCode=new URLSearchParams(location.search).get('join');

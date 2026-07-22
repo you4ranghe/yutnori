@@ -85,12 +85,20 @@ language sql immutable as $$
   )::uuid
 $$;
 
--- ---------- 헬퍼: 오래된 방 청소 (방 생성 시마다 실행되므로 pg_cron 불필요) ----------
+-- ---------- 오래된 방 청소 ----------
+-- 1시간 동안 아무 진행(던지기·이동·참가·채팅)이 없으면 방을 지운다.
+-- updated_at 은 게임 진행 · 참가/퇴장 · 채팅 때마다 갱신된다.
 create or replace function public._cleanup_rooms() returns void
 language sql security definer set search_path = public as $$
   delete from rooms
-   where created_at < now() - interval '24 hours'
-      or (status = 'finished' and updated_at < now() - interval '1 hour');
+   where updated_at < now() - interval '1 hour'
+      or created_at < now() - interval '24 hours';
+$$;
+
+-- 로비를 열 때 클라이언트가 호출해서 청소가 항상 돌게 한다
+create or replace function public.cleanup_rooms() returns void
+language sql security definer set search_path = public as $$
+  select public._cleanup_rooms();
 $$;
 
 -- ---------- 프로필 저장 ----------
@@ -166,6 +174,7 @@ begin
   if exists (select 1 from players where room_id = r.id and user_id = auth.uid()) then
     update players set nickname = v_nick, avatar = v_av
      where room_id = r.id and user_id = auth.uid();
+    update rooms set updated_at = now() where id = r.id;
     return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
   end if;
 
@@ -182,6 +191,7 @@ begin
 
   insert into players (room_id, user_id, nickname, team, avatar)
        values (r.id, auth.uid(), v_nick, v_team, v_av);
+  update rooms set updated_at = now() where id = r.id;
 
   return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
 end $$;
@@ -194,6 +204,7 @@ begin
   update players set team = p_team
    where room_id = p_room_id and user_id = auth.uid()
      and exists (select 1 from rooms where id = p_room_id and status = 'waiting');
+  update rooms set updated_at = now() where id = p_room_id;
 end $$;
 
 -- ---------- 게임 시작 / 다시 시작 (방장 전용) ----------
@@ -319,6 +330,7 @@ begin
 
   insert into messages (room_id, user_id, nickname, text)
        values (p_room_id, auth.uid(), v_nick, v_text);
+  update rooms set updated_at = now() where id = p_room_id;   -- 대화도 방이 살아있다는 신호
 
   -- 방마다 최근 100개만 보관
   delete from messages
@@ -435,13 +447,21 @@ grant execute on function
   public.push_state(uuid, jsonb),
   public.force_state(uuid, jsonb),
   public.reopen_room(uuid),
+  public.cleanup_rooms(),
   public.send_message(uuid, text),
   public.leave_room(uuid)
 to authenticated;
 
 -- ============================================================
--- (선택) pg_cron 으로 매일 새벽 자동 청소를 추가하고 싶다면 아래 주석 해제
--- 기본으로도 방 생성 시마다 _cleanup_rooms() 가 돌기 때문에 없어도 됩니다.
+-- 자동 청소 예약 (pg_cron) — 10분마다 오래된 방을 지운다.
+-- 권한이 없어 실패해도 스크립트는 계속 진행되며, 그 경우에도
+-- 누군가 로비를 열 때마다 cleanup_rooms() 가 호출되어 청소된다.
 -- ============================================================
--- create extension if not exists pg_cron;
--- select cron.schedule('yut-cleanup', '0 4 * * *', $$ select public._cleanup_rooms() $$);
+do $$
+begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('yut-cleanup', '*/10 * * * *', $c$ select public._cleanup_rooms() $c$);
+  raise notice 'pg_cron 자동 청소를 10분마다 예약했습니다.';
+exception when others then
+  raise notice 'pg_cron 예약을 건너뜁니다 (%). 로비 접속 시 청소는 정상 동작합니다.', sqlerrm;
+end $$;
