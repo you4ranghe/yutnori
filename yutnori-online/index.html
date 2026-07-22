@@ -271,6 +271,19 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
   background:var(--surface);border:1px solid var(--line);border-radius:22px;
   padding:14px 12px;display:flex;flex-direction:column;gap:10px;
   box-shadow:var(--sh-card);min-width:0;position:relative;overflow:hidden;
+  text-align:left;font:inherit;color:inherit;cursor:pointer;
+  transition:transform .07s,box-shadow .15s;
+}
+.teamBox:active{transform:translateY(2px)}
+.teamGo{
+  display:block;text-align:center;border-radius:13px;padding:10px 8px;
+  font-size:13px;font-weight:900;color:#fff;letter-spacing:-.2px;
+}
+#teamBox0 .teamGo{background:linear-gradient(165deg,#18D8BC,var(--teal));box-shadow:0 2px 0 var(--teal-d)}
+#teamBox1 .teamGo{background:linear-gradient(165deg,#FF7C8C,var(--coral));box-shadow:0 2px 0 var(--coral-d)}
+.teamBox.mine .teamGo{
+  background:var(--surface-2);color:var(--mint-d);box-shadow:none;
+  border:1px solid var(--line);
 }
 .teamBox::before{content:'';position:absolute;left:0;right:0;top:0;height:5px}
 #teamBox0::before{background:linear-gradient(90deg,var(--teal),var(--teal-l))}
@@ -279,7 +292,7 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 .teamBox .tHead{font-size:15px;font-weight:900;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
 .teamBox .cnt{font-size:11.5px;color:var(--ink-3);font-weight:800}
 .teamBox .pList{flex:1;align-items:flex-start;align-content:flex-start;margin:0}
-.teamBox .joinTeam{width:100%}
+
 .aiSlot{
   display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:var(--violet-d);
   background:rgba(124,107,255,.10);border:1.5px dashed rgba(124,107,255,.45);
@@ -710,17 +723,17 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
 
     <div class="teamPick">
-      <div class="teamBox" id="teamBox0">
-        <div class="tHead">🐢 파란팀 <span class="cnt" id="cnt0"></span></div>
-        <div class="pList" id="pList0"></div>
-        <button class="miniBtn joinTeam" data-team="0">이 팀으로 가기</button>
-      </div>
+      <button type="button" class="teamBox joinTeam" id="teamBox0" data-team="0">
+        <span class="tHead">🐢 파란팀 <span class="cnt" id="cnt0"></span></span>
+        <span class="pList" id="pList0"></span>
+        <span class="teamGo" id="go0">이 팀으로 가기</span>
+      </button>
       <div class="vsMark">VS</div>
-      <div class="teamBox" id="teamBox1">
-        <div class="tHead">🐰 빨간팀 <span class="cnt" id="cnt1"></span></div>
-        <div class="pList" id="pList1"></div>
-        <button class="miniBtn joinTeam" data-team="1">이 팀으로 가기</button>
-      </div>
+      <button type="button" class="teamBox joinTeam" id="teamBox1" data-team="1">
+        <span class="tHead">🐰 빨간팀 <span class="cnt" id="cnt1"></span></span>
+        <span class="pList" id="pList1"></span>
+        <span class="teamGo" id="go1">이 팀으로 가기</span>
+      </button>
     </div>
 
     <div class="card optCard" id="hostOpts">
@@ -895,6 +908,17 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     </div>
     <button id="soloGo" class="primaryBtn solo">시작하기 🎯</button>
     <button id="soloClose" class="ghostBtn">닫기</button>
+  </div>
+</div>
+
+<!-- ---------- 출발·도착 칸 선택 ---------- -->
+<div class="fullOverlay" id="pickDlg" style="display:none">
+  <div class="dialog" style="max-width:400px">
+    <h2>🚩 어느 말을 쓸까요?</h2>
+    <div class="hint" id="pickHint">출발·도착 칸에 내 말이 서 있어요.</div>
+    <button id="pickStay" class="primaryBtn alt" style="margin-top:18px">🏁 골인시키기</button>
+    <button id="pickNew" class="primaryBtn" style="margin-top:10px">➕ 새 말 놓기</button>
+    <button id="pickCancel" class="ghostBtn">취소</button>
   </div>
 </div>
 
@@ -1741,10 +1765,11 @@ function drawBoard(now){
       c.strokeStyle=hexA('#FFB020',.25);c.lineWidth=10;c.stroke();
     }
     if(canEnter()){
+      const both=pickAtStart();
       c.beginPath();c.arc(sp0.x,sp0.y,36+pulse,0,TAU);
       c.setLineDash([8,7]);c.strokeStyle='#FFB020';c.lineWidth=3.5;c.stroke();c.setLineDash([]);
       c.font='900 13px '+UI_FONT;c.fillStyle='#FFCF6B';
-      c.fillText('새 말 놓기',sp0.x,sp0.y+52);
+      c.fillText(both?'눌러서 고르기':'새 말 놓기',sp0.x,sp0.y+52);
     }
   }
 
@@ -1843,19 +1868,22 @@ function canvasPos(e){
   const r=bd.getBoundingClientRect();
   return{x:(e.clientX-r.left)*bd.width/r.width,y:(e.clientY-r.top)*bd.height/r.height};
 }
+/* 출발·도착 칸에 내 말이 서 있고 새 말도 놓을 수 있으면 둘 중 하나를 골라야 한다 */
+function pickAtStart(){
+  return S&&S.phase==='select'&&canEnter()&&selectableNodes().includes(0);
+}
 function hitTarget(e){
   if(!S||S.phase!=='select'||S.busy||MA||!isMyTurn())return null;
   const m=canvasPos(e);
+  const p0=NODE_POS[0],d0=(p0.x-m.x)**2+(p0.y-m.y)**2;
+  if(pickAtStart()&&d0<46*46)return'PICK';
   let best=null,bd2=42*42;
   for(const n of selectableNodes()){
     const p=NODE_POS[n],d=(p.x-m.x)**2+(p.y-m.y)**2;
     if(d<bd2){bd2=d;best=n;}
   }
   if(best!==null)return best;
-  if(canEnter()){
-    const p=NODE_POS[0],d=(p.x-m.x)**2+(p.y-m.y)**2;
-    if(d<46*46)return'ENTER';
-  }
+  if(canEnter()&&d0<46*46)return'ENTER';
   return null;
 }
 bd.addEventListener('pointermove',e=>{
@@ -1867,9 +1895,27 @@ bd.addEventListener('pointermove',e=>{
 bd.addEventListener('pointerleave',()=>{hoverNode=null;});
 bd.addEventListener('click',e=>{
   const h=hitTarget(e);
-  if(h==='ENTER')executeMove({type:'enter'});
+  if(h==='PICK')openPick();
+  else if(h==='ENTER')executeMove({type:'enter'});
   else if(h!==null)executeMove({type:'node',node:h});
 });
+
+/* 출발·도착 칸: 서 있던 말과 새 말 중 고르기 */
+function openPick(){
+  if(!pickAtStart()||!isMyTurn())return;
+  const T=S.teams[S.cur];
+  const cnt=T.pieces.filter(p=>p.node===0&&!p.done).length;
+  const chip=S.pending[S.sel];
+  const waiting=T.pieces.filter(p=>p.node===null&&!p.done).length;
+  $('pickStay').textContent='🏁 서 있던 말 골인'+(cnt>1?' (말 '+cnt+'개)':'');
+  $('pickNew').textContent='➕ 새 말 놓기 (대기 '+waiting+'개)';
+  $('pickHint').textContent=(chip?chip.name+'로 ':'')+'출발·도착 칸에 서 있는 말을 낼 수 있어요.';
+  $('pickDlg').style.display='flex';
+}
+function closePick(){$('pickDlg').style.display='none';}
+$('pickStay').addEventListener('click',()=>{closePick();executeMove({type:'node',node:0});});
+$('pickNew').addEventListener('click',()=>{closePick();executeMove({type:'enter'});});
+$('pickCancel').addEventListener('click',closePick);
 
 /* ================= 화면 갱신 ================= */
 function updateUI(){
@@ -1897,6 +1943,7 @@ function updateUI(){
 
   $('skipBtn').style.display=
     (!solo&&!spectating&&!ai&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
+  if($('pickDlg').style.display==='flex'&&!pickAtStart())closePick();
   $('specBar').classList.toggle('on',spectating);
   if(spectating)$('specText').textContent='관전 중';
   $('backRoomBar').style.display=
@@ -2405,7 +2452,9 @@ function renderRoom(){
       }
     }
     $('cnt'+ti).textContent=mem.length?mem.length+'명':'';
-    $('teamBox'+ti).classList.toggle('mine',mem.some(p=>p.user_id===myUid));
+    const isMine=mem.some(p=>p.user_id===myUid);
+    $('teamBox'+ti).classList.toggle('mine',isMine);
+    $('go'+ti).textContent=isMine?'✓ 우리 팀':'이 팀으로 가기';
   }
 
   $('hostOpts').style.display=isHost?'':'none';
