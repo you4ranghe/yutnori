@@ -1067,18 +1067,47 @@ function renderLog(){
 }
 
 /* ================= 사운드 ================= */
-let AC=null;
-function ac(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}
-function tone(freq,dur,type,vol,delay){
+/* 모든 소리는 브라우저에서 직접 만들어 낸다 — 내려받을 파일도, 저작권 걱정도 없다. */
+let AC=null,MASTER=null,SFXBUS=null,BGMBUS=null;
+function ac(){
+  if(!AC){
+    AC=new(window.AudioContext||window.webkitAudioContext)();
+    MASTER=AC.createGain(); MASTER.gain.value=1; MASTER.connect(AC.destination);
+    SFXBUS=AC.createGain(); SFXBUS.gain.value=1; SFXBUS.connect(MASTER);
+    BGMBUS=AC.createGain(); BGMBUS.gain.value=0;  BGMBUS.connect(MASTER);
+  }
+  if(AC.state==='suspended')AC.resume();
+  return AC;
+}
+const MIDI=m=>440*Math.pow(2,(m-69)/12);
+
+/* ---------- 기본 소리 재료 ---------- */
+function tone(freq,dur,type,vol,delay,bus){
   if(!soundOn)return;
   try{
     const a=ac(),t=a.currentTime+(delay||0);
     const o=a.createOscillator(),g=a.createGain();
     o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
     g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(vol||0.15,t+0.015);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol||0.15),t+0.015);
     g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-    o.connect(g);g.connect(a.destination);
+    o.connect(g);g.connect(bus||SFXBUS);
+    o.start(t);o.stop(t+dur+0.03);
+  }catch(e){}
+}
+/* 음이 미끄러지는 소리 — 우스꽝스러운 효과에 쓴다 */
+function slide(f0,f1,dur,type,vol,delay){
+  if(!soundOn)return;
+  try{
+    const a=ac(),t=a.currentTime+(delay||0);
+    const o=a.createOscillator(),g=a.createGain();
+    o.type=type||'sawtooth';
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(SFXBUS);
     o.start(t);o.stop(t+dur+0.03);
   }catch(e){}
 }
@@ -1086,6 +1115,27 @@ function melody(notes,type,vol){
   let d=0;
   notes.forEach(n=>{tone(n[0],n[1],type||'triangle',vol||0.16,d);d+=n[1]*0.82;});
 }
+/* 반짝이는 잔가루 소리 — 축하 장면에 뿌린다 */
+function sparkle(n,base,spread,delay){
+  if(!soundOn)return;
+  for(let i=0;i<n;i++)
+    tone(base+Math.random()*spread,0.10+Math.random()*0.10,'sine',0.05,(delay||0)+i*0.045);
+}
+function noiseHit(dur,freq,q,vol,delay,bus){
+  if(!soundOn)return;
+  try{
+    const a=ac(),t=a.currentTime+(delay||0);
+    const buf=a.createBuffer(1,Math.max(1,Math.floor(a.sampleRate*dur)),a.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const s=a.createBufferSource();s.buffer=buf;
+    const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=freq;f.Q.value=q||1;
+    const g=a.createGain();g.gain.value=vol||0.2;
+    s.connect(f);f.connect(g);g.connect(bus||SFXBUS);s.start(t);
+  }catch(e){}
+}
+
+/* ---------- 효과음 ---------- */
 const sfx={
   click(){tone(560,0.05,'square',0.06);},
   move(){tone(720,0.07,'sine',0.13);tone(1080,0.05,'sine',0.07,0.05);},
@@ -1093,27 +1143,76 @@ const sfx={
   leave(){melody([[587,0.1],[392,0.18]]);},
   chat(){melody([[880,0.06],[1175,0.09]],'sine',0.12);},
   tick(){tone(1250,0.045,'square',0.06);},
-  win(){melody([[523,0.13],[659,0.13],[784,0.13],[1047,0.34]],'triangle',0.19);},
-  lose(){melody([[440,0.16],[349,0.16],[262,0.34]],'triangle',0.16);},
-  catch(){melody([[300,0.07],[620,0.08],[930,0.14]],'square',0.13);},
-  goal(){melody([[784,0.1],[988,0.1],[1319,0.28]],'triangle',0.18);},
   bad(){melody([[330,0.12],[220,0.22]],'sawtooth',0.11);},
-  good(){melody([[660,0.09],[990,0.16]],'triangle',0.16);}
+  good(){melody([[660,0.09],[990,0.16]],'triangle',0.16);},
+
+  /* 윷 — 신난다 */
+  yut(){
+    duck(1.2);
+    melody([[659,0.1],[784,0.1],[988,0.22]],'triangle',0.19);
+    sparkle(5,1400,700,0.18);
+    noiseHit(0.25,3000,0.7,0.06,0.02);
+  },
+  /* 모 — 제일 신난다 */
+  mo(){
+    duck(1.6);
+    melody([[659,0.09],[784,0.09],[988,0.09],[1319,0.32]],'triangle',0.21);
+    sparkle(9,1600,900,0.2);
+    noiseHit(0.4,3200,0.6,0.08,0.02);
+    tone(196,0.5,'sine',0.14,0.02);
+  },
+  /* 상대 말을 잡았다 — 통쾌하게 */
+  catchWin(){
+    duck(1.4);
+    slide(300,900,0.16,'square',0.13);
+    melody([[784,0.08],[1047,0.08],[1319,0.22]],'square',0.13);
+    noiseHit(0.2,1800,0.8,0.10,0.02);
+  },
+  /* 내 말이 잡혔다 — 좌절스럽고 우스꽝스럽게 (뿌우… 하고 내려간다) */
+  catchLose(){
+    duck(1.6);
+    slide(440,110,0.75,'sawtooth',0.13);
+    tone(220,0.25,'triangle',0.07,0.10);
+    tone(165,0.35,'triangle',0.07,0.34);
+    noiseHit(0.5,420,1.4,0.05,0.55);
+  },
+  /* 우리 팀 골인 — 축하 세레모니 */
+  goalCheer(){
+    duck(2.2);
+    melody([[523,0.11],[659,0.11],[784,0.11],[1047,0.16],[1319,0.42]],'triangle',0.2);
+    sparkle(12,1500,1100,0.32);
+    tone(131,0.7,'sine',0.12,0.02);
+    noiseHit(0.6,2600,0.5,0.07,0.34);
+  },
+  /* 상대 팀 골인 — 짧고 담백하게 */
+  goalOther(){melody([[784,0.1],[988,0.2]],'triangle',0.13);},
+  /* 말을 업었다 */
+  stack(){tone(420,0.09,'sine',0.12);tone(630,0.13,'sine',0.12,0.07);},
+  /* 내 차례가 왔다 — 딴 데 보고 있어도 알아채도록 */
+  myTurn(){duck(1.0);melody([[880,0.12],[1175,0.2]],'sine',0.15);},
+  /* 놀이 끝 */
+  win(){
+    duck(4);
+    melody([[523,0.14],[659,0.14],[784,0.14],[1047,0.2],[1319,0.2],[1047,0.5]],'triangle',0.2);
+    sparkle(16,1400,1300,0.5);
+  },
+  lose(){duck(3);melody([[523,0.18],[440,0.18],[349,0.2],[262,0.55]],'triangle',0.15);}
 };
-function clack(v){
-  if(!soundOn)return;
+/* 큰 소리가 날 때 배경음악을 잠깐 낮춘다 */
+function duck(sec){
+  if(!BGM.playing||!BGMBUS)return;
   try{
     const a=ac(),t=a.currentTime;
-    const buf=a.createBuffer(1,Math.floor(a.sampleRate*0.045),a.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2.2);
-    const s=a.createBufferSource();s.buffer=buf;
-    const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=1400+Math.random()*900;f.Q.value=1.1;
-    const g=a.createGain();g.gain.value=0.55*v;
-    s.connect(f);f.connect(g);g.connect(a.destination);s.start(t);
+    BGMBUS.gain.cancelScheduledValues(t);
+    BGMBUS.gain.setValueAtTime(BGMBUS.gain.value,t);
+    BGMBUS.gain.linearRampToValueAtTime(BGM.vol*0.25,t+0.06);
+    BGMBUS.gain.linearRampToValueAtTime(BGM.vol,t+0.06+(sec||1));
   }catch(e){}
 }
 function chime(happy){happy?sfx.good():sfx.bad();}
+
+/* 윷가락 부딪히는 소리 · 던지는 바람 소리 */
+function clack(v){noiseHit(0.045,1400+Math.random()*900,1.1,0.55*v);}
 function whoosh(){
   if(!soundOn)return;
   try{
@@ -1129,12 +1228,159 @@ function whoosh(){
     g.gain.setValueAtTime(0.0001,t);
     g.gain.exponentialRampToValueAtTime(0.4,t+0.13);
     g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    s.connect(f);f.connect(g);g.connect(a.destination);
+    s.connect(f);f.connect(g);g.connect(SFXBUS);
     s.start(t);s.stop(t+dur);
   }catch(e){}
 }
 function buzz(p){if(soundOn&&navigator.vibrate)try{navigator.vibrate(p)}catch(e){}}
-document.addEventListener('pointerdown',()=>{try{ac()}catch(e){}},{once:true});
+
+/* ---------- 한국어 음성 (선택) ----------
+   음성 파일을 넣고 싶으면 voice 폴더에 넣고 아래에 경로만 적으면 된다.
+   예: VOICE['모']='./voice/mo.mp3'  ·  VOICE['잡았다']='./voice/catch.mp3'
+   비어 있으면 아무 일도 하지 않으므로 지금 그대로 둬도 된다. */
+const VOICE={};
+function playVoice(key){
+  if(!soundOn||!VOICE[key])return;
+  try{const a=new Audio(VOICE[key]);a.volume=0.9;duck(1.2);a.play().catch(()=>{});}catch(e){}
+}
+
+/* ================= 배경음악 ================= */
+/* 한국 전통 5음계(펜타토닉)를 바탕으로 그때그때 연주한다.
+   10곡 모두 같은 악기·비슷한 빠르기라 오래 들어도 튀지 않는다. */
+const PENTA={maj:[0,2,4,7,9],min:[0,3,5,7,10]};
+const TRACKS=[
+  {name:'아침 마당',   root:60,sc:'maj',prog:[0,9,5,7], bpm:86,seed:3,  perc:1},
+  {name:'윷판 위에',   root:62,sc:'maj',prog:[0,7,9,5], bpm:90,seed:17, perc:1},
+  {name:'느린 걸음',   root:57,sc:'min',prog:[0,5,7,3], bpm:82,seed:29, perc:0},
+  {name:'모야 나와라', root:65,sc:'maj',prog:[0,5,7,7], bpm:94,seed:41, perc:2},
+  {name:'달빛 마루',   root:59,sc:'min',prog:[0,8,5,7], bpm:84,seed:53, perc:0},
+  {name:'한 번 더',    root:67,sc:'maj',prog:[0,9,2,7], bpm:92,seed:67, perc:2},
+  {name:'가는 길',     root:60,sc:'maj',prog:[0,5,9,7], bpm:88,seed:79, perc:1},
+  {name:'잡았다',      root:64,sc:'min',prog:[0,7,5,10],bpm:90,seed:91, perc:2},
+  {name:'저녁 놀이',   root:55,sc:'maj',prog:[0,7,5,9], bpm:84,seed:103,perc:1},
+  {name:'다 왔다',     root:62,sc:'maj',prog:[0,5,7,9], bpm:96,seed:113,perc:2}
+];
+const BARS_PER_TRACK=24;                       /* 한 곡 약 1분 */
+const BGM={on:true,playing:false,vol:0.13,track:0,bar:0,nextT:0,timer:null,mood:'lobby',motif:null};
+
+/* 곡마다 고정된 가락을 만들기 위한 간단한 난수 */
+function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+
+/* 두 마디짜리 가락 씨앗 — 쉼표가 섞여 있어 수다스럽지 않다 */
+function makeMotif(seed,scale){
+  const r=rng(seed),m=[];
+  let deg=2;
+  for(let i=0;i<16;i++){
+    const beat=i%4;
+    const rest=r()< (beat===0?0.15:0.45);
+    if(rest){m.push(null);continue;}
+    const step=[-2,-1,-1,0,1,1,2][Math.floor(r()*7)];
+    deg=Math.max(-2,Math.min(7,deg+step));
+    m.push(deg);
+  }
+  return m;
+}
+function scaleNote(root,sc,deg){
+  const s=PENTA[sc],n=s.length;
+  const oct=Math.floor(deg/n),idx=((deg%n)+n)%n;
+  return root+s[idx]+12*oct;
+}
+
+function bgmSetMood(m){BGM.mood=m;}
+function bgmStart(){
+  if(BGM.playing||!soundOn||!BGM.on)return;
+  const a=ac();
+  // 브라우저가 아직 소리를 열어 주지 않았으면 첫 터치 때 다시 시도한다
+  if(a.state!=='running')return;
+  BGM.playing=true;
+  BGM.bar=0;BGM.nextT=a.currentTime+0.15;
+  BGM.motif=makeMotif(TRACKS[BGM.track].seed,TRACKS[BGM.track].sc);
+  BGMBUS.gain.cancelScheduledValues(a.currentTime);
+  BGMBUS.gain.setValueAtTime(0.0001,a.currentTime);
+  BGMBUS.gain.linearRampToValueAtTime(BGM.vol,a.currentTime+1.5);
+  BGM.timer=setInterval(bgmTick,60);
+  bgmTick();
+}
+function bgmStop(fade){
+  if(!BGM.playing)return;
+  BGM.playing=false;
+  if(BGM.timer){clearInterval(BGM.timer);BGM.timer=null;}
+  try{
+    const a=ac(),t=a.currentTime;
+    BGMBUS.gain.cancelScheduledValues(t);
+    BGMBUS.gain.setValueAtTime(BGMBUS.gain.value,t);
+    BGMBUS.gain.linearRampToValueAtTime(0.0001,t+(fade==null?0.6:fade));
+  }catch(e){}
+}
+function bgmTick(){
+  if(!BGM.playing)return;
+  const a=ac(),look=a.currentTime+0.9;
+  let guard=0;
+  while(BGM.nextT<look&&guard++<8){
+    const tr=TRACKS[BGM.track];
+    const barDur=4*60/tr.bpm;
+    playBar(BGM.nextT,BGM.bar,tr,barDur);
+    BGM.nextT+=barDur;
+    BGM.bar++;
+    if(BGM.bar%BARS_PER_TRACK===0){
+      BGM.track=(BGM.track+1)%TRACKS.length;
+      BGM.motif=makeMotif(TRACKS[BGM.track].seed,TRACKS[BGM.track].sc);
+    }
+  }
+}
+function playBar(t0,bar,tr,barDur){
+  const eighth=barDur/8;
+  const chordIdx=bar%tr.prog.length;
+  const rootMidi=tr.root+tr.prog[chordIdx];
+  const full=BGM.mood==='game';
+  const g=BGMBUS;
+  const now=ac().currentTime, at=t0-now;
+
+  /* 낮은 음 — 뼈대 */
+  tone(MIDI(rootMidi-24),barDur*0.5,'sine',0.16,at,g);
+  tone(MIDI(rootMidi-12),barDur*0.22,'triangle',0.05,at+barDur*0.5,g);
+
+  /* 화음 — 아주 여리게 깔린다 */
+  [0,7,14].forEach((iv,i)=>{
+    tone(MIDI(rootMidi-12+iv),barDur*0.95,'triangle',0.030-i*0.006,at,g);
+  });
+
+  /* 가락 — 두 마디 씨앗을 화음에 맞춰 옮겨 연주 */
+  if(BGM.motif){
+    const off=(bar%2)*8;
+    for(let i=0;i<8;i++){
+      const deg=BGM.motif[off+i];
+      if(deg===null||deg===undefined)continue;
+      if(!full&&i%2===1)continue;                    /* 로비에서는 절반만 */
+      const swing=(i%2===1)?eighth*0.08:0;
+      const n=scaleNote(rootMidi+12,tr.sc,deg);
+      tone(MIDI(n),eighth*1.6,'triangle',full?0.075:0.05,at+i*eighth+swing,g);
+      if(full&&i%4===0)tone(MIDI(n+12),eighth*0.9,'sine',0.028,at+i*eighth,g);
+    }
+  }
+
+  /* 가벼운 장단 */
+  if(full&&tr.perc>0){
+    tone(90,0.13,'sine',0.10,at,g);
+    if(tr.perc>1)tone(80,0.10,'sine',0.06,at+barDur*0.5,g);
+    for(let i=1;i<8;i+=2)
+      noiseHit(0.035,5200,1.2,0.020,at+i*eighth,g);
+  }
+}
+
+/* 화면이 안 보이면 배경음악을 멈춰 배터리를 아낀다 */
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)bgmStop(0.3);
+  else if(soundOn&&BGM.on)bgmStart();
+});
+/* 첫 터치에서 소리를 열고 배경음악을 시작한다 (브라우저 자동재생 정책) */
+document.addEventListener('pointerdown',()=>{
+  try{
+    const a=ac();
+    const go=()=>{if(soundOn&&BGM.on)bgmStart();};
+    if(a.state==='running')go(); else a.resume().then(go).catch(()=>{});
+  }catch(e){}
+},{once:true});
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');
   if(b&&!b.disabled&&b.id!=='soundBtn'&&b.id!=='soundBtn2')sfx.click();
@@ -1342,7 +1588,7 @@ function resolveMove(movers,dest,newHist,T){
     log(T.name+' 말 '+movers.length+'개 골인!');
     fxBig('🏁','골인! +'+movers.length,T.color);
     fxConf(0,60,[T.color,'#FFB020','#fff']);
-    fxSfx('goal');buzz([30,40,60]);
+    fxSide('goalCheer','goalOther');buzz([30,40,60]);
   }else{
     const E=S.teams[1-S.cur];
     const caught=E.pieces.filter(p=>p.node===dest);
@@ -1352,14 +1598,14 @@ function resolveMove(movers,dest,newHist,T){
       log(T.name+'이(가) '+E.name+' 말 '+caught.length+'개를 잡았습니다! 한 번 더!');
       fxBig('💥','잡았다! 한 번 더!',T.color);
       fxConf(dest,45,[T.color,'#FFB020']);
-      fxSfx('catch');buzz([40,50,40]);
+      fxSide('catchWin','catchLose');buzz([40,50,40]);
     }
     movers.forEach(p=>{p.node=dest;p.hist=newHist.slice();});
     const stacked=T.pieces.filter(p=>p.node===dest&&!p.done);
     if(stacked.length>movers.length){
       stacked.forEach(p=>p.hist=newHist.slice());
       log('말을 업었습니다! (함께 '+stacked.length+'개)');
-      fxMini('🤝 업었다! 함께 '+stacked.length+'개');
+      fxMini('🤝 업었다! 함께 '+stacked.length+'개');fxSfx('stack');
     }
     applySpecial(dest,T,newHist);
   }
@@ -1397,7 +1643,7 @@ function applySpecial(dest,T,newHist){
     log(T.name+' 천국! 방(중앙)으로 순간이동!');
     fxBig('😇','천국! 방으로 순간이동',sp.c);
     fxConf(22,45,[T.color,'#FFB020','#fff']);
-    fxSfx('goal');buzz([30,40,60]);
+    fxSfx('yut');buzz([30,40,60]);
   }else if(sp.t==='지옥'){
     T.pieces.filter(p=>p.node===dest&&!p.done).forEach(p=>{p.node=null;p.hist=[];});
     log(T.name+' 지옥! 말이 처음으로 돌아갑니다…');
@@ -1418,6 +1664,7 @@ function endTurn(){
 
 function showWinner(){
   if(winShown)return;winShown=true;
+  bgmStop(0.5);
   const T=S.teams[S.winner];
   const byLeave=S.winBy==='leave';
   $('winTrophy').textContent=byLeave?'🏳️':'🏆';
@@ -1465,12 +1712,24 @@ function fxBig(e,t,c){bigToast(e,t,c);fxRec.push({k:'big',e,t,c});}
 function fxMini(t){miniToast(t);fxRec.push({k:'mini',t});}
 function fxConf(node,n,colors){confettiAtNode(node,n,colors);fxRec.push({k:'conf',node,n,colors});}
 function fxSfx(name){if(sfx[name])sfx[name]();fxRec.push({k:'sfx',n:name});}
+/* 같은 사건이라도 우리 팀이냐 상대 팀이냐에 따라 다른 소리를 들려준다 */
+function iAmOnTeam(ti){
+  if(!S||!S.teams[ti])return false;
+  if(solo)return ti===0;
+  return S.teams[ti].players.some(p=>p.uid===myUid);
+}
+function sideSfx(win,lose,team){
+  const n=(spectating||iAmOnTeam(team))?win:lose;
+  if(sfx[n])sfx[n]();
+}
+function fxSide(win,lose){sideSfx(win,lose,S.cur);fxRec.push({k:'side',w:win,l:lose,t:S.cur});}
 function playFx(list){
   (list||[]).forEach(f=>{
     if(f.k==='big')bigToast(f.e,f.t,f.c);
     else if(f.k==='mini')miniToast(f.t);
     else if(f.k==='conf')confettiAtNode(f.node,f.n,f.colors);
     else if(f.k==='sfx'&&sfx[f.n])sfx[f.n]();
+    else if(f.k==='side')sideSfx(f.w,f.l,f.t);
     else if(f.k==='chime')chime(f.h);
   });
 }
@@ -1566,7 +1825,8 @@ function playThrow(faces,name,steps,cb){
     });
     if(t>=SHOW&&!lab.innerHTML){
       setLabel();
-      if(steps>=4){sfx.good();confettiXY(innerWidth/2,innerHeight*0.35,40,['#FFB020','#FF5A6E','#7BF0DF','#fff']);}
+      playVoice(name);
+      if(steps>=4){(steps===5?sfx.mo():sfx.yut());confettiXY(innerWidth/2,innerHeight*0.35,steps===5?60:40,['#FFB020','#FF5A6E','#7BF0DF','#fff']);}
     }
     if(t>=HIDE){ov.classList.remove('show');cb();return;}
     requestAnimationFrame(frame);
@@ -1958,6 +2218,8 @@ function updateUI(){
   if(info&&info.avatar)setAvatarInto(tb,cp.uid,42);
   else tb.textContent=(cp&&cp.uid===AI_UID)?'🤖':teamIcon(S.cur);
 
+  if(mine&&!wasMyTurn&&!solo&&S.winner===null&&!spectating)sfx.myTurn();
+  wasMyTurn=mine;
   const ai=aiTurn();
   $('turnName').textContent=T.name+' · '+cName+(mine?' (나)':'');
   $('turnStatus').textContent=
@@ -2062,16 +2324,25 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();doThrow();
   }
 });
-function toggleSound(){
-  soundOn=!soundOn;
+function applySound(){
   $('soundBtn').textContent=soundOn?'🔊':'🔇';
   $('soundBtn2').textContent=soundOn?'🔊':'🔇';
-  if(soundOn){try{ac();sfx.good();}catch(e){}}
+  const lbl=soundOn?'소리 켜기/끄기 (지금 켜짐)':'소리 켜기/끄기 (지금 꺼짐)';
+  $('soundBtn').setAttribute('aria-label',lbl);
+  $('soundBtn2').setAttribute('aria-label',lbl);
+}
+function toggleSound(){
+  soundOn=!soundOn;
+  localStorage.setItem('yut_sound',soundOn?'1':'0');
+  applySound();
+  if(soundOn){try{ac();sfx.good();bgmStart();}catch(e){}miniToast('🔊 소리 켜짐 (음악 + 효과음)');}
+  else{bgmStop(0.3);miniToast('🔇 소리 꺼짐');}
 }
 $('soundBtn').addEventListener('click',toggleSound);
 $('soundBtn2').addEventListener('click',toggleSound);
 
 /* ================= 20초 자동 진행 ================= */
+let wasMyTurn=false;
 let tKey='',tStart=0,autoDone='',skipDone='',lastTick=-1;
 function actionKey(){
   if(!S)return '';
@@ -2339,17 +2610,21 @@ function showApp(){
 }
 function showGameScreen(){
   showApp();
+  bgmSetMood('game');
+  if(soundOn&&BGM.on)bgmStart();
   $('roomPanel').classList.add('hidden');
   $('gamePanel').classList.remove('hidden');
   $('actionBar').classList.remove('hidden');
 }
 function showRoomPanel(){
   showApp();
+  bgmSetMood('lobby');
   $('gamePanel').classList.add('hidden');
   $('roomPanel').classList.remove('hidden');
   $('actionBar').classList.add('hidden');
 }
 function showLobbyScreen(){
+  bgmSetMood('lobby');
   $('boot').style.display='none';
   $('app').classList.add('hidden');
   $('actionBar').classList.add('hidden');
@@ -3014,6 +3289,9 @@ $('createBtn').addEventListener('click',async()=>{
     $('bootMsg').innerHTML='접속에 실패했어요: '+errMsg(e)+'<br>Supabase 대시보드에서 익명 로그인(Anonymous sign-ins)이 켜져 있는지 확인해 주세요.';
     return;
   }
+
+  soundOn=localStorage.getItem('yut_sound')!=='0';
+  applySound();
 
   await loadProfile();
   subscribeLobby();
