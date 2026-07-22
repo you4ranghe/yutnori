@@ -1205,7 +1205,7 @@ function duck(sec){
     const a=ac(),t=a.currentTime;
     BGMBUS.gain.cancelScheduledValues(t);
     BGMBUS.gain.setValueAtTime(BGMBUS.gain.value,t);
-    BGMBUS.gain.linearRampToValueAtTime(BGM.vol*0.25,t+0.06);
+    BGMBUS.gain.linearRampToValueAtTime(BGM.vol*0.32,t+0.06);
     BGMBUS.gain.linearRampToValueAtTime(BGM.vol,t+0.06+(sec||1));
   }catch(e){}
 }
@@ -1234,14 +1234,48 @@ function whoosh(){
 }
 function buzz(p){if(soundOn&&navigator.vibrate)try{navigator.vibrate(p)}catch(e){}}
 
-/* ---------- 한국어 음성 (선택) ----------
-   음성 파일을 넣고 싶으면 voice 폴더에 넣고 아래에 경로만 적으면 된다.
-   예: VOICE['모']='./voice/mo.mp3'  ·  VOICE['잡았다']='./voice/catch.mp3'
-   비어 있으면 아무 일도 하지 않으므로 지금 그대로 둬도 된다. */
+/* ---------- 한국어 음성 ----------
+   기기에 들어 있는 한국어 목소리로 도·개·걸·윷·모를 실제로 말해 준다.
+   직접 녹음한 파일을 쓰고 싶으면 voice 폴더에 넣고 아래에 경로만 적으면
+   그 파일이 우선한다. 예: VOICE['모']='./voice/mo.mp3' */
 const VOICE={};
-function playVoice(key){
-  if(!soundOn||!VOICE[key])return;
-  try{const a=new Audio(VOICE[key]);a.volume=0.9;duck(1.2);a.play().catch(()=>{});}catch(e){}
+/* 화면에 뜨는 이름 → 실제로 외치는 말 */
+const CALL={'도':'도','개':'개','걸':'걸','윷':'윷이야','모':'모야','빽도':'빽도'};
+const TTS=('speechSynthesis'in window)?window.speechSynthesis:null;
+let koVoice=null;
+function pickKoVoice(){
+  if(!TTS)return;
+  const vs=TTS.getVoices()||[];
+  const ko=vs.filter(v=>/^ko\b|^ko[-_]/i.test(v.lang||''));
+  // 또렷하고 자연스러운 목소리를 우선한다
+  koVoice=ko.find(v=>/yuna|heami|sunhi|nari|female/i.test(v.name||''))||ko[0]||null;
+}
+if(TTS){
+  pickKoVoice();
+  try{TTS.addEventListener('voiceschanged',pickKoVoice);}catch(e){TTS.onvoiceschanged=pickKoVoice;}
+}
+/* 아이폰은 첫 음성이 사용자 조작 안에서 시작돼야 해서 미리 한 번 깨워 둔다 */
+function primeTTS(){
+  if(!TTS)return;
+  try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.lang='ko-KR';TTS.speak(u);}catch(e){}
+}
+function playVoice(text,opt){
+  if(!soundOn||!text)return;
+  const key=(opt&&opt.key)||text;
+  if(VOICE[key]){
+    try{const a=new Audio(VOICE[key]);a.volume=1;duck(1.5);a.play().catch(()=>{});return;}catch(e){}
+  }
+  if(!TTS||!koVoice)return;
+  try{
+    if(TTS.speaking||TTS.pending)TTS.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.voice=koVoice;u.lang='ko-KR';
+    u.rate=(opt&&opt.rate)||1.05;
+    u.pitch=(opt&&opt.pitch)||1.15;
+    u.volume=1;
+    duck(1.5);
+    TTS.speak(u);
+  }catch(e){}
 }
 
 /* ================= 배경음악 ================= */
@@ -1261,7 +1295,7 @@ const TRACKS=[
   {name:'다 왔다',     root:62,sc:'maj',prog:[0,5,7,9], bpm:96,seed:113,perc:2}
 ];
 const BARS_PER_TRACK=24;                       /* 한 곡 약 1분 */
-const BGM={on:true,playing:false,vol:0.13,track:0,bar:0,nextT:0,timer:null,mood:'lobby',motif:null};
+const BGM={on:true,playing:false,vol:0.24,track:0,bar:0,nextT:0,timer:null,mood:'lobby',motif:null};
 
 /* 곡마다 고정된 가락을 만들기 위한 간단한 난수 */
 function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
@@ -1377,6 +1411,7 @@ document.addEventListener('visibilitychange',()=>{
 document.addEventListener('pointerdown',()=>{
   try{
     const a=ac();
+    primeTTS();
     const go=()=>{if(soundOn&&BGM.on)bgmStart();};
     if(a.state==='running')go(); else a.resume().then(go).catch(()=>{});
   }catch(e){}
@@ -1588,7 +1623,7 @@ function resolveMove(movers,dest,newHist,T){
     log(T.name+' 말 '+movers.length+'개 골인!');
     fxBig('🏁','골인! +'+movers.length,T.color);
     fxConf(0,60,[T.color,'#FFB020','#fff']);
-    fxSide('goalCheer','goalOther');buzz([30,40,60]);
+    fxSide('goalCheer','goalOther');fxSay('골인');buzz([30,40,60]);
   }else{
     const E=S.teams[1-S.cur];
     const caught=E.pieces.filter(p=>p.node===dest);
@@ -1598,7 +1633,7 @@ function resolveMove(movers,dest,newHist,T){
       log(T.name+'이(가) '+E.name+' 말 '+caught.length+'개를 잡았습니다! 한 번 더!');
       fxBig('💥','잡았다! 한 번 더!',T.color);
       fxConf(dest,45,[T.color,'#FFB020']);
-      fxSide('catchWin','catchLose');buzz([40,50,40]);
+      fxSide('catchWin','catchLose');fxSay('잡았다');buzz([40,50,40]);
     }
     movers.forEach(p=>{p.node=dest;p.hist=newHist.slice();});
     const stacked=T.pieces.filter(p=>p.node===dest&&!p.done);
@@ -1679,7 +1714,7 @@ function showWinner(){
   $('winBackBtn').style.display=(!solo&&!spectating&&room&&myUid===room.host)?'':'none';
   $('winOverlay').classList.add('show');
   const iWon=solo?S.winner===0:S.teams[S.winner].players.some(p=>p.uid===myUid);
-  if(iWon||spectating)sfx.win();else sfx.lose();
+  if(iWon||spectating){sfx.win();if(iWon)playVoice('이겼어요',{rate:1});}else sfx.lose();
   buzz([60,60,60,60,120]);
   let k=0;
   const iv=setInterval(()=>{
@@ -1723,6 +1758,7 @@ function sideSfx(win,lose,team){
   if(sfx[n])sfx[n]();
 }
 function fxSide(win,lose){sideSfx(win,lose,S.cur);fxRec.push({k:'side',w:win,l:lose,t:S.cur});}
+function fxSay(text){playVoice(text);fxRec.push({k:'say',t:text});}
 function playFx(list){
   (list||[]).forEach(f=>{
     if(f.k==='big')bigToast(f.e,f.t,f.c);
@@ -1730,6 +1766,7 @@ function playFx(list){
     else if(f.k==='conf')confettiAtNode(f.node,f.n,f.colors);
     else if(f.k==='sfx'&&sfx[f.n])sfx[f.n]();
     else if(f.k==='side')sideSfx(f.w,f.l,f.t);
+    else if(f.k==='say')playVoice(f.t);
     else if(f.k==='chime')chime(f.h);
   });
 }
@@ -1782,6 +1819,7 @@ function playThrow(faces,name,steps,cb){
     drawMat(c,cv);
     faces.forEach((f,i)=>drawStick(c,100+i*120,215,(i%2?0.3:-0.3),f?0:Math.PI,f,i===0&&S.backdo));
     setLabel();
+    playVoice(CALL[name]||name,{key:name,rate:steps>=4?1.12:1.05,pitch:steps>=4?1.3:1.15});
     setTimeout(()=>{ov.classList.remove('show');cb();},1300);
     return;
   }
@@ -1825,7 +1863,7 @@ function playThrow(faces,name,steps,cb){
     });
     if(t>=SHOW&&!lab.innerHTML){
       setLabel();
-      playVoice(name);
+      playVoice(CALL[name]||name,{key:name,rate:steps>=4?1.12:1.05,pitch:steps>=4?1.3:1.15});
       if(steps>=4){(steps===5?sfx.mo():sfx.yut());confettiXY(innerWidth/2,innerHeight*0.35,steps===5?60:40,['#FFB020','#FF5A6E','#7BF0DF','#fff']);}
     }
     if(t>=HIDE){ov.classList.remove('show');cb();return;}
