@@ -1,0 +1,241 @@
+-- ============================================================
+-- 윷놀이 온라인 - Supabase 스키마
+-- Supabase 대시보드 > SQL Editor 에 이 파일 전체를 붙여넣고 Run 하세요.
+-- 여러 번 실행해도 안전합니다.
+-- ============================================================
+
+create extension if not exists pgcrypto;
+
+-- ---------- 테이블 ----------
+create table if not exists public.rooms (
+  id          uuid primary key default gen_random_uuid(),
+  code        text unique not null,
+  host        uuid not null,
+  status      text not null default 'waiting',   -- waiting | playing | finished
+  game_state  jsonb,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create table if not exists public.players (
+  id         uuid primary key default gen_random_uuid(),
+  room_id    uuid not null references public.rooms(id) on delete cascade,
+  user_id    uuid not null,
+  nickname   text not null,
+  team       int  not null default 0,            -- 0=파란팀, 1=빨간팀
+  joined_at  timestamptz not null default now(),
+  unique (room_id, user_id)
+);
+
+-- ---------- RLS: 읽기는 로그인(익명 포함) 사용자 누구나, 쓰기는 RPC 함수로만 ----------
+alter table public.rooms   enable row level security;
+alter table public.players enable row level security;
+
+drop policy if exists rooms_select   on public.rooms;
+create policy rooms_select   on public.rooms   for select to authenticated using (true);
+drop policy if exists players_select on public.players;
+create policy players_select on public.players for select to authenticated using (true);
+
+-- ---------- Realtime 발행 (변경 사항을 클라이언트에 실시간 전송) ----------
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.rooms;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.players;
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- ---------- 헬퍼: 현재 차례인 플레이어의 uid ----------
+create or replace function public._thrower(st jsonb) returns uuid
+language sql immutable as $$
+  select (
+    st->'teams'->((st->>'cur')::int)->'players'
+      ->((st->'teams'->((st->>'cur')::int)->>'pIdx')::int)->>'uid'
+  )::uuid
+$$;
+
+-- ---------- 헬퍼: 오래된 방 청소 (방 생성 시마다 실행되므로 pg_cron 불필요) ----------
+create or replace function public._cleanup_rooms() returns void
+language sql security definer set search_path = public as $$
+  delete from rooms
+   where created_at < now() - interval '24 hours'
+      or (status = 'finished' and updated_at < now() - interval '1 hour');
+$$;
+
+-- ---------- 방 만들기 ----------
+create or replace function public.create_room(p_nickname text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_code text;
+  v_room uuid;
+begin
+  if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+  if coalesce(trim(p_nickname),'') = '' then raise exception '닉네임을 입력해 주세요'; end if;
+
+  perform _cleanup_rooms();
+
+  loop
+    select string_agg(substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', 1 + floor(random()*31)::int, 1), '')
+      into v_code from generate_series(1, 6);
+    exit when not exists (select 1 from rooms where code = v_code);
+  end loop;
+
+  insert into rooms (code, host) values (v_code, auth.uid()) returning id into v_room;
+  insert into players (room_id, user_id, nickname, team)
+       values (v_room, auth.uid(), trim(p_nickname), 0);
+
+  return jsonb_build_object('room_id', v_room, 'code', v_code);
+end $$;
+
+-- ---------- 방 참가 (초대 코드) ----------
+create or replace function public.join_room(p_code text, p_nickname text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  r rooms%rowtype;
+  v_team int;
+begin
+  if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
+
+  select * into r from rooms where code = upper(trim(p_code));
+  if not found then raise exception '방을 찾을 수 없어요. 코드를 확인해 주세요'; end if;
+
+  -- 이미 참가한 방이면 그대로 재입장 (새로고침/재접속)
+  if exists (select 1 from players where room_id = r.id and user_id = auth.uid()) then
+    return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
+  end if;
+
+  if r.status <> 'waiting' then raise exception '이미 시작된 방이에요'; end if;
+  if (select count(*) from players where room_id = r.id) >= 12 then
+    raise exception '정원(12명)이 가득 찼어요';
+  end if;
+  if coalesce(trim(p_nickname),'') = '' then raise exception '닉네임을 입력해 주세요'; end if;
+
+  -- 인원이 적은 팀으로 자동 배정 (대기실에서 바꿀 수 있음)
+  select case when count(*) filter (where team = 0) <= count(*) filter (where team = 1)
+              then 0 else 1 end
+    into v_team from players where room_id = r.id;
+
+  insert into players (room_id, user_id, nickname, team)
+       values (r.id, auth.uid(), trim(p_nickname), v_team);
+
+  return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
+end $$;
+
+-- ---------- 팀 바꾸기 (대기 중에만) ----------
+create or replace function public.set_team(p_room_id uuid, p_team int)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_team not in (0, 1) then raise exception '잘못된 팀이에요'; end if;
+  update players set team = p_team
+   where room_id = p_room_id and user_id = auth.uid()
+     and exists (select 1 from rooms where id = p_room_id and status = 'waiting');
+end $$;
+
+-- ---------- 게임 시작 / 다시 시작 (방장 전용) ----------
+create or replace function public.start_game(p_room_id uuid, p_state jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare r rooms%rowtype;
+begin
+  select * into r from rooms where id = p_room_id for update;
+  if not found then raise exception '방을 찾을 수 없어요'; end if;
+  if r.host <> auth.uid() then raise exception '방장만 시작할 수 있어요'; end if;
+  if not exists (select 1 from players where room_id = p_room_id and team = 0)
+     or not exists (select 1 from players where room_id = p_room_id and team = 1) then
+    raise exception '두 팀 모두 1명 이상 있어야 해요';
+  end if;
+
+  update rooms set status = 'playing', game_state = p_state, updated_at = now()
+   where id = p_room_id;
+end $$;
+
+-- ---------- 윷 던지기: 결과는 서버에서 생성 (조작 방지) ----------
+create or replace function public.throw_sticks(p_room_id uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  st jsonb;
+  v_faces jsonb;
+begin
+  select game_state into st from rooms where id = p_room_id and status = 'playing';
+  if st is null then raise exception '진행 중인 게임이 아니에요'; end if;
+  if _thrower(st) <> auth.uid() then raise exception '지금은 내 차례가 아니에요'; end if;
+  if st->>'phase' <> 'throw' or (st->>'throwsLeft')::int <= 0 then
+    raise exception '지금은 던질 수 없어요';
+  end if;
+  if st->'winner' <> 'null'::jsonb then raise exception '이미 끝난 게임이에요'; end if;
+
+  -- 윷가락 4개: true=배(평평한 면 위), 원본 게임과 같은 확률(57%)
+  select jsonb_agg(random() < 0.57) into v_faces from generate_series(1, 4);
+  return jsonb_build_object('faces', v_faces);
+end $$;
+
+-- ---------- 상태 저장: 현재 차례인 사람만 가능 ----------
+create or replace function public.push_state(p_room_id uuid, p_state jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare st jsonb;
+begin
+  select game_state into st from rooms where id = p_room_id for update;
+  if st is null then raise exception '진행 중인 게임이 아니에요'; end if;
+  if _thrower(st) <> auth.uid() then raise exception '지금은 내 차례가 아니에요'; end if;
+  if (p_state->>'ver')::int <= (st->>'ver')::int then raise exception '오래된 상태예요'; end if;
+
+  update rooms
+     set game_state = p_state,
+         status = case when p_state->'winner' <> 'null'::jsonb then 'finished' else status end,
+         updated_at = now()
+   where id = p_room_id;
+end $$;
+
+-- ---------- 상태 강제 저장 (방장 전용): 자리 비운 사람 차례 넘기기 용 ----------
+create or replace function public.force_state(p_room_id uuid, p_state jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare r rooms%rowtype;
+begin
+  select * into r from rooms where id = p_room_id for update;
+  if not found then raise exception '방을 찾을 수 없어요'; end if;
+  if r.host <> auth.uid() then raise exception '방장만 할 수 있어요'; end if;
+  update rooms set game_state = p_state, updated_at = now() where id = p_room_id;
+end $$;
+
+-- ---------- 방 나가기 ----------
+create or replace function public.leave_room(p_room_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare r rooms%rowtype;
+begin
+  select * into r from rooms where id = p_room_id;
+  if not found then return; end if;
+
+  -- 대기 중에 방장이 나가면 방 자체를 닫음
+  if r.status = 'waiting' and r.host = auth.uid() then
+    delete from rooms where id = p_room_id;
+    return;
+  end if;
+
+  delete from players where room_id = p_room_id and user_id = auth.uid();
+  if not exists (select 1 from players where room_id = p_room_id) then
+    delete from rooms where id = p_room_id;
+  end if;
+end $$;
+
+-- ---------- 함수 실행 권한: 로그인(익명 포함) 사용자만 ----------
+revoke execute on all functions in schema public from anon;
+grant execute on function
+  public.create_room(text),
+  public.join_room(text, text),
+  public.set_team(uuid, int),
+  public.start_game(uuid, jsonb),
+  public.throw_sticks(uuid),
+  public.push_state(uuid, jsonb),
+  public.force_state(uuid, jsonb),
+  public.leave_room(uuid)
+to authenticated;
+
+-- ============================================================
+-- (선택) pg_cron 으로 매일 새벽 자동 청소를 추가하고 싶다면 아래 주석 해제
+-- 기본으로도 방 생성 시마다 _cleanup_rooms() 가 돌기 때문에 없어도 됩니다.
+-- ============================================================
+-- create extension if not exists pg_cron;
+-- select cron.schedule('yut-cleanup', '0 4 * * *', $$ select public._cleanup_rooms() $$);
