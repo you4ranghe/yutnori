@@ -137,6 +137,37 @@ header .sub{font-size:12.5px;color:var(--sub);line-height:1.35}
 .onChip .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none}
 .onChip .st{font-size:11.5px;color:var(--sub);font-weight:500}
 
+/* ---------- room panel (놀이 시작 전) ---------- */
+.roomHead{display:flex;align-items:center;gap:12px;padding:14px;margin-bottom:14px}
+.roomHead .rTitle{font-size:17px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roomHead .rSub{font-size:12.5px;color:var(--sub);margin-top:2px}
+.teamPick{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;margin-bottom:14px}
+.teamBox{
+  background:var(--card);border:1.5px solid var(--line);border-radius:20px;
+  border-top:7px solid;padding:13px 12px;display:flex;flex-direction:column;gap:8px;
+  box-shadow:0 4px 14px rgba(31,36,48,.07);min-width:0;
+}
+#teamBox0{border-top-color:var(--blue)}
+#teamBox1{border-top-color:var(--red)}
+.teamBox.mine{box-shadow:0 0 0 3px rgba(249,171,0,.5)}
+.teamBox .tHead{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.teamBox .cnt{font-size:12px;color:var(--sub);font-weight:600}
+.teamBox .pList{flex:1;align-items:flex-start;align-content:flex-start;margin:0}
+.teamBox .joinTeam{width:100%}
+.teamBox .aiSlot{
+  display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#5b3ec9;
+  background:#f2edff;border:1.5px dashed #c9b6ff;border-radius:14px;padding:8px 10px;
+}
+.vsMark{
+  align-self:center;font-size:13px;font-weight:800;color:var(--sub);
+  background:var(--card);border:1.5px solid var(--line);border-radius:50%;
+  width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex:none;
+}
+.optCard{padding:14px}
+.optTitle{font-size:14.5px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.optTitle .cnt{font-size:12px;color:var(--sub);font-weight:600}
+.waitNote{font-size:13.5px;color:var(--sub);text-align:center;margin-top:10px;min-height:20px}
+
 /* ---------- turn banner ---------- */
 #turnBanner{
   border-radius:20px;padding:13px 15px;margin-bottom:12px;
@@ -364,6 +395,7 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
 .primaryBtn.solo{background:linear-gradient(160deg,#ffc247,#e08600);box-shadow:0 2px 4px rgba(31,36,48,.2),0 8px 18px rgba(227,134,0,.35)}
 .ghostBtn{width:100%;min-height:44px;margin-top:10px;border-radius:22px;color:var(--sub);font-size:14px;border:1.5px solid var(--line);background:#fff;font-weight:600}
 .fLbl{font-size:13px;color:var(--sub);display:block;margin:14px 0 4px;font-weight:600}
+.fieldNote{font-size:12.5px;color:var(--sub);margin-top:6px;line-height:1.45}
 .dialog input.big{width:100%;min-height:48px;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff}
 .errMsg{color:var(--red-d);font-size:14px;text-align:center;margin-top:10px;min-height:20px}
 .errMsg.ok{color:var(--green-d)}
@@ -447,6 +479,49 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
 
   <div id="specBar">👀 <span>관전 중이에요 — 구경만 할 수 있어요</span></div>
 
+  <!-- ===== 방 화면 (놀이 시작 전) ===== -->
+  <section id="roomPanel" class="hidden">
+    <div class="card roomHead">
+      <span id="rHostAv" style="display:flex;flex:none"></span>
+      <div style="flex:1;min-width:0">
+        <div class="rTitle" id="rTitle">놀이방</div>
+        <div class="rSub">친구가 <b>로비의 놀이방 목록</b>에서 이 방을 눌러 들어와요</div>
+      </div>
+    </div>
+
+    <div class="teamPick">
+      <div class="teamBox" id="teamBox0">
+        <div class="tHead">🐢 파란팀 <span class="cnt" id="cnt0"></span></div>
+        <div class="pList" id="pList0"></div>
+        <button class="miniBtn joinTeam" data-team="0">이 팀으로 가기</button>
+      </div>
+      <div class="vsMark">VS</div>
+      <div class="teamBox" id="teamBox1">
+        <div class="tHead">🐰 빨간팀 <span class="cnt" id="cnt1"></span></div>
+        <div class="pList" id="pList1"></div>
+        <button class="miniBtn joinTeam" data-team="1">이 팀으로 가기</button>
+      </div>
+    </div>
+
+    <div class="card optCard" id="hostOpts">
+      <div class="optTitle">⚙️ 놀이 설정 <span class="cnt">방장만 바꿀 수 있어요</span></div>
+      <div class="optRow" style="margin-bottom:0">
+        <label>말 개수
+          <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
+        </label>
+        <label><input type="checkbox" id="aiFill" checked> 🤖 <b>빈 팀은 컴퓨터가 맡기</b> — 혼자여도 바로 시작!</label>
+        <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 표시 윷가락 하나만 뒤집히면 뒤로 1칸)</label>
+        <label><input type="checkbox" id="specialOpt" checked> 특별칸 사용 (😇천국 · 👿지옥 · 🤰잉태)</label>
+      </div>
+    </div>
+
+    <button id="wStartBtn" class="primaryBtn" style="margin-top:14px">놀이 시작 🎉</button>
+    <div class="waitNote" id="waitMsg"></div>
+    <button id="leaveBtn" class="ghostBtn">🚪 방 나가기</button>
+  </section>
+
+  <!-- ===== 놀이 화면 ===== -->
+  <section id="gamePanel" class="hidden">
   <div id="turnBanner" aria-live="polite">
     <div id="turnBadge">🎲</div>
     <div style="min-width:0">
@@ -508,6 +583,7 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
     <summary>📖 놀이 기록</summary>
     <div id="log"></div>
   </details>
+  </section>
 </div>
 
 <div id="actionBar" class="hidden"><button id="throwBtn">윷 던지기 🙌</button></div>
@@ -540,15 +616,17 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
 <div class="fullOverlay" id="authDlg" style="display:none">
   <div class="dialog">
     <h2 id="authTitle">🔑 로그인</h2>
-    <div class="hint">가입하면 이름과 프로필 사진이 저장되어, 다른 기기에서도 그대로 쓸 수 있어요.</div>
+    <div class="hint">가입하면 이름과 프로필 사진이 저장되어, 다른 기기에서도 그대로 쓸 수 있어요.<br><b>이메일 인증 없이</b> 가입하는 즉시 바로 로그인됩니다.</div>
     <div class="tabs">
       <button class="tab on" id="tabLogin">로그인</button>
       <button class="tab" id="tabSignup">회원가입</button>
     </div>
-    <label class="fLbl" for="authEmail">이메일</label>
-    <input class="big" id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
+    <label class="fLbl" for="authId">아이디</label>
+    <input class="big" id="authId" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="예: yutdosa">
+    <div class="fieldNote">영문·숫자 3자 이상. 이메일 주소를 그대로 써도 돼요.</div>
     <label class="fLbl" for="authPw">비밀번호 (6자 이상)</label>
     <input class="big" id="authPw" type="password" autocomplete="current-password" placeholder="••••••">
+    <div class="fieldNote" id="pwNote">잊어버려도 찾아주는 기능이 없으니 기억하기 쉬운 것으로 정해 주세요.</div>
     <button id="authGo" class="primaryBtn" style="margin-top:16px">로그인</button>
     <div class="errMsg" id="authMsg"></div>
     <button id="authClose" class="ghostBtn">닫기</button>
@@ -572,6 +650,7 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
     <input class="big" id="profNick" maxlength="10" placeholder="예: 윷도사">
     <button id="profSave" class="primaryBtn" style="margin-top:16px">저장</button>
     <div class="errMsg" id="profMsg"></div>
+    <button id="profLogout" class="ghostBtn" style="display:none">🚪 로그아웃</button>
     <button id="profClose" class="ghostBtn">닫기</button>
   </div>
 </div>
@@ -591,36 +670,6 @@ details ul{margin:9px 0 2px 20px;font-size:14px;line-height:1.9;color:#4e5666}
     </div>
     <button id="soloGo" class="primaryBtn solo">시작하기 🎯</button>
     <button id="soloClose" class="ghostBtn">닫기</button>
-  </div>
-</div>
-
-<!-- ---------- 대기실 ---------- -->
-<div class="fullOverlay" id="waitRoom" style="display:none">
-  <div class="dialog">
-    <h2>⏳ 대기실</h2>
-    <div class="hint">친구가 <b>로비의 놀이방 목록</b>에서 이 방을 눌러 들어와요.<br>들어오면 아래에 나타납니다.</div>
-    <div class="teamSetups">
-      <div class="tSetup" style="border-top-color:var(--blue)">
-        <div class="tHead">🐢 파란팀</div>
-        <div class="pList" id="pList0"></div>
-        <button class="miniBtn joinTeam" data-team="0">이 팀으로 가기</button>
-      </div>
-      <div class="tSetup" style="border-top-color:var(--red)">
-        <div class="tHead">🐰 빨간팀</div>
-        <div class="pList" id="pList1"></div>
-        <button class="miniBtn joinTeam" data-team="1">이 팀으로 가기</button>
-      </div>
-    </div>
-    <div class="optRow" id="hostOpts">
-      <label>말 개수
-        <select id="pieceCount"><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
-      </label>
-      <label><input type="checkbox" id="backdoOpt" checked> 빽도 사용 (✕ 표시 윷가락 하나만 뒤집히면 뒤로 1칸)</label>
-      <label><input type="checkbox" id="specialOpt" checked> 특별칸 사용 (😇천국 · 👿지옥 · 🤰잉태)</label>
-    </div>
-    <button id="wStartBtn" class="primaryBtn">놀이 시작 🎉</button>
-    <div class="hint" id="waitMsg" style="margin-top:10px"></div>
-    <button id="leaveBtn" class="ghostBtn">🚪 방 나가기</button>
   </div>
 </div>
 
@@ -659,10 +708,13 @@ const TEAM_ICON=['🐢','🐰'];
 const TEAM_NAME=['파란팀','빨간팀'];
 const EMOJI_FONT='"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
 const SPECIAL={
-  8:{e:'🤰',t:'잉태',c:'#34a853',dx:0,dy:-36},
+  7:{e:'🤰',t:'잉태',c:'#34a853',dx:0,dy:-36},
   27:{e:'👿',t:'지옥',c:'#c5221f',dx:54,dy:-16},
   18:{e:'😇',t:'천국',c:'#1a73e8',dx:0,dy:-36}
 };
+/* 특별칸 이름 → 칸 번호 (칸을 옮겨도 판단 로직이 따라오도록) */
+const SP_NODE={};
+Object.keys(SPECIAL).forEach(k=>{SP_NODE[SPECIAL[k].t]=+k;});
 
 /* 이동 규칙: 모서리·방에 '서 있다가' 출발할 때만 지름길 진입 */
 function computeDest(startNode, steps, exact){
@@ -706,9 +758,9 @@ const $=id=>document.getElementById(id);
 const REDUCED=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const CONF=window.YUT_CONFIG||{};
-const AI_UID='computer';
+const AI_UID='00000000-0000-0000-0000-00000000c0de';   // 컴퓨터(서버 schema.sql 과 동일)
 const TURN_SEC=20, HOST_GRACE=12;
-let sb=null,myUid=null,isGuest=true,myProfile={nickname:'',avatar:null};
+let sb=null,myUid=null,isGuest=true,myLoginId='',myProfile={nickname:'',avatar:null};
 let room=null,channel=null,lobbyCh=null,playersRows=[],pMap={},winShown=false;
 let solo=false,soloOpts=null,aiTimer=null,notifyRooms=true,spectating=false;
 let fxRec=[],curMove=null;
@@ -721,8 +773,11 @@ function isMyTurn(){
   const T=S.teams[S.cur],p=T.players[T.pIdx];
   return !!p&&p.uid===myUid;
 }
-function canAct(){return solo||isMyTurn();}
 function curPlayer(){if(!S)return null;const T=S.teams[S.cur];return T.players[T.pIdx]||null;}
+function aiTurn(){const p=curPlayer();return !!p&&p.uid===AI_UID&&(!S||S.winner===null);}
+/* 컴퓨터는 딱 한 사람만 대신 진행해야 한다 — 연습이면 나, 온라인이면 방장 */
+function iDriveAI(){return solo||(!!room&&!spectating&&room.host===myUid);}
+function canAct(){return isMyTurn()||(aiTurn()&&iDriveAI());}
 function curPlayerName(){const p=curPlayer();return p?p.name:'?';}
 function teamIcon(ti){return (S&&S.teams[ti]&&S.teams[ti].icon)||TEAM_ICON[ti];}
 
@@ -845,7 +900,7 @@ function rebuildPMap(){
   pMap=keep;
   playersRows.forEach(r=>{pMap[r.user_id]={name:r.nickname,avatar:r.avatar};});
   pMap[myUid]={name:myProfile.nickname,avatar:myProfile.avatar};
-  if(solo)pMap[AI_UID]={name:'컴퓨터',avatar:null};
+  pMap[AI_UID]={name:'컴퓨터',avatar:null};
 }
 
 /* ================= 진행 ================= */
@@ -959,9 +1014,9 @@ function scoreMove(chip,tg){
   s+=1200*E.pieces.filter(p=>p.node===dest&&!p.done).length;
   s+=45*T.pieces.filter(p=>p.node===dest&&!p.done).length;
   if(S.special){
-    if(dest===18)s+=380;
-    if(dest===8&&T.pieces.some(p=>p.node===null&&!p.done))s+=260;
-    if(dest===27)s-=900*movers;
+    if(dest===SP_NODE['천국'])s+=380;
+    if(dest===SP_NODE['잉태']&&T.pieces.some(p=>p.node===null&&!p.done))s+=260;
+    if(dest===SP_NODE['지옥'])s-=900*movers;
   }
   const d0=(from===null)?distToExit(0)+1:distToExit(from);
   s+=(d0-distToExit(dest))*22*Math.max(1,movers);
@@ -1481,16 +1536,18 @@ function updateUI(){
   if(info&&info.avatar)setAvatarInto(tb,cp.uid,42);
   else tb.textContent=(cp&&cp.uid===AI_UID)?'🤖':teamIcon(S.cur);
 
+  const ai=aiTurn();
   $('turnName').textContent=T.name+' · '+cName+(mine?' (나)':'');
   $('turnStatus').textContent=
     S.winner!==null?'놀이가 끝났어요!':
     S.busy?'윷이 날아가요…':
     MA||S.phase==='anim'?'말이 움직여요…':
+    ai?'🤖 컴퓨터가 생각하는 중…':
     S.phase==='throw'?(mine?(S.pending.length?'한 번 더 던지세요!':'아래 버튼을 눌러 윷을 던지세요'):cName+' 님이 던질 차례예요'):
     (mine?'결과를 고른 뒤, 반짝이는 말을 누르세요':cName+' 님이 말을 옮기고 있어요');
 
   $('skipBtn').style.display=
-    (!solo&&!spectating&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
+    (!solo&&!spectating&&!ai&&room&&myUid===room.host&&!mine&&S.winner===null&&!S.busy&&!MA)?'':'none';
   $('specBar').classList.toggle('on',spectating);
 
   const btn=$('throwBtn');
@@ -1501,6 +1558,8 @@ function updateUI(){
     btn.textContent='윷 던지기 🙌'+(S.throwsLeft>1?' ('+S.throwsLeft+'번 남음)':'');
   else if(S.busy||MA||S.phase==='anim')
     btn.textContent='⏳ 잠시만요…';
+  else if(ai)
+    btn.textContent='🤖 컴퓨터가 두는 중…';
   else if(spectating)
     btn.textContent='👀 관전 중 — '+cName+' 님 차례';
   else if(!mine)
@@ -1591,7 +1650,7 @@ function actionKey(){
   return [S.ver||0,S.phase,S.cur,S.teams[S.cur].pIdx,S.pending.length,S.throwsLeft].join('|');
 }
 function timerActive(){
-  return !!S && !solo && !!room && S.winner===null && !S.busy && !MA
+  return !!S && !solo && !!room && S.winner===null && !S.busy && !MA && !aiTurn()
          && (S.phase==='throw'?S.throwsLeft>0:S.phase==='select');
 }
 function tickTimer(){
@@ -1633,11 +1692,11 @@ function autoAct(){
 
 /* ================= 혼자 연습: 컴퓨터 ================= */
 function maybeAI(){
-  if(!solo||!S||S.winner!==null||S.cur!==1)return;
+  if(!S||S.winner!==null||!aiTurn()||!iDriveAI())return;
   if(S.busy||MA||S.phase==='anim'||aiTimer)return;
   aiTimer=setTimeout(()=>{
     aiTimer=null;
-    if(!solo||!S||S.winner!==null||S.cur!==1||S.busy||MA)return;
+    if(!S||S.winner!==null||!aiTurn()||!iDriveAI()||S.busy||MA)return;
     if(S.phase==='throw'&&S.throwsLeft>0)doThrow();
     else if(S.phase==='select'){
       const m=bestMove();
@@ -1645,7 +1704,7 @@ function maybeAI(){
         S.sel=m.chipIdx;
         aiTimer=setTimeout(()=>{
           aiTimer=null;
-          if(solo&&S&&S.cur===1&&!MA&&S.phase==='select')executeMove(m.target);
+          if(S&&aiTurn()&&iDriveAI()&&!MA&&S.phase==='select')executeMove(m.target);
         },450);
       }
     }
@@ -1656,13 +1715,17 @@ function maybeAI(){
 function errMsg(e){return (e&&(e.message||e.error_description))||'문제가 생겼어요';}
 
 function buildInitialState(rows,opts){
-  const mk=ti=>({
-    name:TEAM_NAME[ti],icon:TEAM_ICON[ti],emoji:TEAM_ICON[ti],
-    color:ti?'#ea4335':'#1a73e8',deep:ti?'#b31412':'#154a9e',
-    players:rows.filter(r=>r.team===ti).map(r=>({uid:r.user_id,name:r.nickname})),
-    pIdx:0,
-    pieces:Array.from({length:opts.pieceCount},(_,k)=>({id:k,node:null,done:false,hist:[]}))
-  });
+  const mk=ti=>{
+    let ps=rows.filter(r=>r.team===ti).map(r=>({uid:r.user_id,name:r.nickname}));
+    let ai=false;
+    if(!ps.length&&opts.aiFill){ps=[{uid:AI_UID,name:'컴퓨터'}];ai=true;}
+    return{
+      name:ai?'컴퓨터팀':TEAM_NAME[ti],icon:TEAM_ICON[ti],emoji:TEAM_ICON[ti],
+      color:ti?'#ea4335':'#1a73e8',deep:ti?'#b31412':'#154a9e',
+      players:ps,pIdx:0,
+      pieces:Array.from({length:opts.pieceCount},(_,k)=>({id:k,node:null,done:false,hist:[]}))
+    };
+  };
   const st={
     gid:Date.now()+'-'+Math.random().toString(36).slice(2,7),
     ver:1,ev:{type:'init'},
@@ -1695,7 +1758,6 @@ async function resync(){
 function onRoomRow(row){
   room=row;
   if(row.status==='waiting'){showWaiting();return;}
-  $('waitRoom').style.display='none';
   const st=row.game_state;
   if(!st)return;
   if(!S||st.gid!==S.gid){hardAdopt(st);return;}
@@ -1833,12 +1895,22 @@ $('chatForm').addEventListener('submit',async e=>{
 });
 
 /* ================= 화면 전환 ================= */
-function showGameScreen(){
+function showApp(){
   $('boot').style.display='none';
   $('lobbyScreen').classList.add('hidden');
-  $('waitRoom').style.display='none';
   $('app').classList.remove('hidden');
+}
+function showGameScreen(){
+  showApp();
+  $('roomPanel').classList.add('hidden');
+  $('gamePanel').classList.remove('hidden');
   $('actionBar').classList.remove('hidden');
+}
+function showRoomPanel(){
+  showApp();
+  $('gamePanel').classList.add('hidden');
+  $('roomPanel').classList.remove('hidden');
+  $('actionBar').classList.add('hidden');
 }
 function showLobbyScreen(){
   $('boot').style.display='none';
@@ -1883,20 +1955,29 @@ async function refreshPlayers(){
   const {data}=await sb.from('players').select('*').eq('room_id',room.id).order('joined_at');
   playersRows=data||[];
   rebuildPMap();
-  if(room.status==='waiting')renderWaiting();
+  if(room.status==='waiting')renderRoom();
   else if(S)updateUI();
 }
 
 function showWaiting(){
-  showGameScreen();
-  $('waitRoom').style.display='flex';
-  renderWaiting();
+  showRoomPanel();
+  renderRoom();
 }
-function renderWaiting(){
+function renderRoom(){
   if(!room)return;
+  const hostRow=playersRows.find(p=>p.user_id===room.host);
+  setAvatarInto($('rHostAv'),hostRow?hostRow.user_id:myUid,44);
+  $('rTitle').textContent=(hostRow?hostRow.nickname+' 님의 방':'놀이방')
+    +(room.host===myUid?' (내 방)':'');
+
+  const isHost=myUid===room.host;
+  const aiFill=$('aiFill').checked;
+  const cnt=[0,0];
   for(const ti of[0,1]){
     const box=$('pList'+ti);box.innerHTML='';
-    playersRows.filter(p=>p.team===ti).forEach(p=>{
+    const mem=playersRows.filter(p=>p.team===ti);
+    cnt[ti]=mem.length;
+    mem.forEach(p=>{
       const s=document.createElement('span');
       s.className='pl';
       s.appendChild(avatarEl(p.user_id,24));
@@ -1905,17 +1986,31 @@ function renderWaiting(){
       s.appendChild(nm);
       box.appendChild(s);
     });
-    if(!box.children.length)box.innerHTML='<span class="noneTxt">아직 없어요</span>';
+    if(!mem.length){
+      if(aiFill){
+        const s=document.createElement('div');
+        s.className='aiSlot';s.textContent='🤖 컴퓨터가 맡아요';
+        box.appendChild(s);
+      }else{
+        box.innerHTML='<span class="noneTxt">아직 없어요</span>';
+      }
+    }
+    $('cnt'+ti).textContent=mem.length?mem.length+'명':'';
+    $('teamBox'+ti).classList.toggle('mine',mem.some(p=>p.user_id===myUid));
   }
-  const isHost=myUid===room.host;
-  const t0=playersRows.some(p=>p.team===0),t1=playersRows.some(p=>p.team===1);
+
   $('hostOpts').style.display=isHost?'':'none';
   $('wStartBtn').style.display=isHost?'':'none';
-  $('wStartBtn').disabled=!(t0&&t1);
+  const withAI=aiFill&&(cnt[0]===0||cnt[1]===0);
+  const ok=(cnt[0]+cnt[1])>0&&(aiFill||(cnt[0]>0&&cnt[1]>0));
+  $('wStartBtn').disabled=!ok;
+  $('wStartBtn').textContent=withAI?'컴퓨터와 놀이 시작 🤖':'놀이 시작 🎉';
   $('waitMsg').textContent=isHost
-    ?(t0&&t1?'':'두 팀 모두 1명 이상 있어야 시작할 수 있어요')
+    ?(ok?(withAI?'상대가 오면 언제든 함께 시작해도 좋아요.':'')
+        :'두 팀 모두 1명 이상 있거나, 컴퓨터가 맡도록 해주세요')
     :'방장이 시작하길 기다리는 중이에요…';
 }
+$('aiFill').addEventListener('change',renderRoom);
 
 document.querySelectorAll('.joinTeam').forEach(b=>{
   b.addEventListener('click',async()=>{
@@ -1932,8 +2027,13 @@ $('wStartBtn').addEventListener('click',async()=>{
   const opts={
     pieceCount:parseInt($('pieceCount').value,10),
     backdo:$('backdoOpt').checked,
-    special:$('specialOpt').checked
+    special:$('specialOpt').checked,
+    aiFill:$('aiFill').checked
   };
+  if(!playersRows.length){$('waitMsg').textContent='⚠️ 참가자가 없어요';return;}
+  if(!opts.aiFill&&!(playersRows.some(p=>p.team===0)&&playersRows.some(p=>p.team===1))){
+    $('waitMsg').textContent='⚠️ 두 팀 모두 1명 이상 있어야 해요';return;
+  }
   const st=buildInitialState(playersRows,opts);
   const {error}=await sb.rpc('start_game',{p_room_id:room.id,p_state:st});
   if(error)$('waitMsg').textContent='⚠️ '+errMsg(error);
@@ -1944,8 +2044,10 @@ $('againBtn').addEventListener('click',async()=>{
   if(!room||!S)return;
   await refreshPlayers();
   const t0=playersRows.some(p=>p.team===0),t1=playersRows.some(p=>p.team===1);
-  if(!t0||!t1){miniToast('⚠️ 두 팀 모두 1명 이상 있어야 해요');return;}
-  const opts={pieceCount:S.teams[0].pieces.length,backdo:S.backdo,special:S.special};
+  const aiFill=$('aiFill').checked;
+  if(!playersRows.length){miniToast('⚠️ 참가자가 없어요');return;}
+  if(!aiFill&&(!t0||!t1)){miniToast('⚠️ 두 팀 모두 1명 이상 있어야 해요');return;}
+  const opts={pieceCount:S.teams[0].pieces.length,backdo:S.backdo,special:S.special,aiFill};
   const st=buildInitialState(playersRows,opts);
   const {error}=await sb.rpc('start_game',{p_room_id:room.id,p_state:st});
   if(error)miniToast('⚠️ '+errMsg(error));
@@ -2180,9 +2282,20 @@ function renderAcct(){
   pMap[myUid]={name:myProfile.nickname,avatar:myProfile.avatar};
   setAvatarInto($('acctAv'),myUid,44);
   $('acctName').textContent=myProfile.nickname||'이름을 정해 주세요';
-  $('acctKind').textContent=isGuest?'게스트로 놀는 중 · 이 기기에만 저장돼요':'✅ 로그인됨';
-  $('authBtn').textContent=isGuest?'로그인':'로그아웃';
+  $('acctKind').textContent=isGuest
+    ?'게스트로 놀는 중 · 이 기기에만 저장돼요'
+    :'✅ '+(myLoginId?myLoginId:'로그인됨')+' · 어느 기기에서나 그대로';
+  $('authBtn').textContent=isGuest?'🔑 로그인':'🚪 로그아웃';
+  $('profLogout').style.display=isGuest?'none':'';
 }
+async function doLogout(){
+  if(!confirm('로그아웃할까요?\n다시 로그인하면 이름과 사진이 그대로 돌아와요.'))return;
+  try{await sb.auth.signOut();}catch(e){}
+  localStorage.removeItem('yut_room');
+  localStorage.removeItem('yut_nick');
+  location.href=location.pathname;
+}
+$('profLogout').addEventListener('click',doLogout);
 async function loadProfile(){
   let p=null;
   try{
@@ -2275,52 +2388,82 @@ $('profSave').addEventListener('click',async()=>{
   $('profSave').disabled=false;
 });
 
+/* 아이디를 내부 계정 주소로 변환 — 이메일을 직접 넣어도 그대로 사용 */
+const ID_DOMAIN='@yutnori.app';
+function idToEmail(v){
+  const s=(v||'').trim().toLowerCase();
+  return s.includes('@')?s:s+ID_DOMAIN;
+}
+function authErr(e){
+  const m=errMsg(e);
+  if(/already registered|already exists|User already/i.test(m))return '이미 쓰고 있는 아이디예요. 다른 아이디로 해주세요.';
+  if(/Invalid login credentials/i.test(m))return '아이디나 비밀번호가 맞지 않아요.';
+  if(/Email not confirmed/i.test(m))return '이메일 확인이 켜져 있어요. Supabase 설정에서 Confirm email 을 꺼주세요.';
+  if(/Password should be/i.test(m))return '비밀번호는 6자 이상이어야 해요.';
+  if(/invalid format|Unable to validate email/i.test(m))return '아이디에 영문·숫자만 써주세요.';
+  if(/rate limit|too many/i.test(m))return '너무 자주 시도했어요. 잠시 후 다시 해주세요.';
+  return m;
+}
+
 let authMode='login';
 function setAuthMode(m){
   authMode=m;
   $('tabLogin').classList.toggle('on',m==='login');
   $('tabSignup').classList.toggle('on',m==='signup');
   $('authTitle').textContent=m==='login'?'🔑 로그인':'📝 회원가입';
-  $('authGo').textContent=m==='login'?'로그인':'가입하기';
+  $('authGo').textContent=m==='login'?'로그인':'가입하고 바로 시작';
+  $('authPw').setAttribute('autocomplete',m==='login'?'current-password':'new-password');
+  $('pwNote').style.display=m==='signup'?'':'none';
   $('authMsg').textContent='';
 }
 $('tabLogin').addEventListener('click',()=>setAuthMode('login'));
 $('tabSignup').addEventListener('click',()=>setAuthMode('signup'));
 $('authClose').addEventListener('click',()=>{$('authDlg').style.display='none';});
-$('authBtn').addEventListener('click',async()=>{
-  if(!isGuest){
-    if(!confirm('로그아웃할까요?'))return;
-    await sb.auth.signOut();
-    location.href=location.pathname;
-    return;
-  }
+$('authBtn').addEventListener('click',()=>{
+  if(!isGuest){doLogout();return;}
   setAuthMode('login');
+  $('authId').value='';
+  $('authPw').value='';
   $('authDlg').style.display='flex';
+  setTimeout(()=>$('authId').focus(),50);
 });
 $('authGo').addEventListener('click',async()=>{
-  const email=$('authEmail').value.trim(),pw=$('authPw').value;
+  const rawId=$('authId').value.trim(),pw=$('authPw').value;
   const msg=$('authMsg');msg.className='errMsg';
-  if(!email||!pw){msg.textContent='이메일과 비밀번호를 입력해 주세요';return;}
+  if(!rawId||!pw){msg.textContent='아이디와 비밀번호를 입력해 주세요';return;}
+  if(!rawId.includes('@')&&!/^[a-zA-Z0-9._-]{3,}$/.test(rawId)){
+    msg.textContent='아이디는 영문·숫자 3자 이상으로 해주세요';return;
+  }
   if(pw.length<6){msg.textContent='비밀번호는 6자 이상이어야 해요';return;}
+
+  const email=idToEmail(rawId);
+  // 게스트로 쓰던 이름·사진을 새 계정으로 그대로 옮기기 위해 잠시 보관
+  const carry={nickname:myProfile.nickname,avatar:myProfile.avatar};
   $('authGo').disabled=true;msg.textContent='잠시만요…';
   try{
     if(authMode==='signup'){
       const {data,error}=await sb.auth.signUp({email,password:pw});
       if(error)throw error;
       if(!data.session){
-        msg.className='errMsg ok';
-        msg.textContent='가입했어요! 이메일로 온 확인 링크를 누른 뒤 로그인해 주세요.';
+        // Supabase 대시보드에서 이메일 확인이 아직 켜져 있는 경우
+        msg.className='errMsg';
+        msg.innerHTML='가입은 됐지만 <b>이메일 확인</b>이 켜져 있어 바로 로그인되지 않았어요.<br>'
+          +'Supabase → Authentication → Sign In / Providers → Email 에서 <b>Confirm email</b> 을 끈 뒤 로그인해 주세요.';
         $('authGo').disabled=false;return;
       }
+      // 가입 즉시 로그인 상태 — 쓰던 이름·사진을 새 계정에 저장
+      try{await sb.rpc('save_profile',{p_nickname:carry.nickname,p_avatar:carry.avatar});}catch(e){}
     }else{
       const {error}=await sb.auth.signInWithPassword({email,password:pw});
       if(error)throw error;
     }
+    msg.className='errMsg ok';
+    msg.textContent=authMode==='signup'?'가입 완료! 바로 시작할게요 🎉':'로그인했어요 🎉';
     localStorage.removeItem('yut_room');
-    location.href=location.pathname;
+    setTimeout(()=>{location.href=location.pathname;},400);
   }catch(e){
     msg.className='errMsg';
-    msg.textContent='⚠️ '+errMsg(e);
+    msg.textContent='⚠️ '+authErr(e);
     $('authGo').disabled=false;
   }
 });
@@ -2348,7 +2491,12 @@ $('createBtn').addEventListener('click',async()=>{
   sb=window.supabase.createClient(CONF.SUPABASE_URL,CONF.SUPABASE_ANON_KEY);
   try{
     const {data:{session}}=await sb.auth.getSession();
-    if(session){myUid=session.user.id;isGuest=!!session.user.is_anonymous;}
+    if(session){
+      myUid=session.user.id;
+      isGuest=!!session.user.is_anonymous;
+      const em=session.user.email||'';
+      myLoginId=em.endsWith(ID_DOMAIN)?em.slice(0,-ID_DOMAIN.length):em;
+    }
     else{
       const {data,error}=await sb.auth.signInAnonymously();
       if(error)throw error;

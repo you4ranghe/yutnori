@@ -71,6 +71,11 @@ begin
   begin alter publication supabase_realtime add table public.messages; exception when duplicate_object then null; end;
 end $$;
 
+-- ---------- 컴퓨터(AI) 플레이어의 고정 uid ----------
+-- 사람이 없는 팀을 컴퓨터가 맡을 때 사용. 실제 계정이 아니므로 방장이 대신 진행한다.
+create or replace function public._ai_uid() returns uuid
+language sql immutable as $$ select '00000000-0000-0000-0000-00000000c0de'::uuid $$;
+
 -- ---------- 헬퍼: 현재 차례인 플레이어의 uid ----------
 create or replace function public._thrower(st jsonb) returns uuid
 language sql immutable as $$
@@ -199,9 +204,9 @@ begin
   select * into r from rooms where id = p_room_id for update;
   if not found then raise exception '방을 찾을 수 없어요'; end if;
   if r.host <> auth.uid() then raise exception '방장만 시작할 수 있어요'; end if;
-  if not exists (select 1 from players where room_id = p_room_id and team = 0)
-     or not exists (select 1 from players where room_id = p_room_id and team = 1) then
-    raise exception '두 팀 모두 1명 이상 있어야 해요';
+  -- 사람이 한 명이라도 있으면 시작 가능 (빈 팀은 컴퓨터가 맡을 수 있음)
+  if not exists (select 1 from players where room_id = p_room_id) then
+    raise exception '참가자가 없어요';
   end if;
 
   update rooms set status = 'playing', game_state = p_state, updated_at = now()
@@ -212,12 +217,21 @@ end $$;
 create or replace function public.throw_sticks(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
-  st jsonb;
+  r       rooms%rowtype;
+  st      jsonb;
+  v_turn  uuid;
   v_faces jsonb;
 begin
-  select game_state into st from rooms where id = p_room_id and status = 'playing';
+  select * into r from rooms where id = p_room_id and status = 'playing';
+  if not found then raise exception '진행 중인 게임이 아니에요'; end if;
+  st := r.game_state;
   if st is null then raise exception '진행 중인 게임이 아니에요'; end if;
-  if _thrower(st) <> auth.uid() then raise exception '지금은 내 차례가 아니에요'; end if;
+  v_turn := _thrower(st);
+  -- 내 차례이거나, 컴퓨터 차례를 방장이 대신 진행하는 경우만 허용
+  if v_turn is distinct from auth.uid()
+     and not (v_turn = _ai_uid() and r.host = auth.uid()) then
+    raise exception '지금은 내 차례가 아니에요';
+  end if;
   if st->>'phase' <> 'throw' or (st->>'throwsLeft')::int <= 0 then
     raise exception '지금은 던질 수 없어요';
   end if;
@@ -231,11 +245,20 @@ end $$;
 -- ---------- 상태 저장: 현재 차례인 사람만 가능 ----------
 create or replace function public.push_state(p_room_id uuid, p_state jsonb)
 returns void language plpgsql security definer set search_path = public as $$
-declare st jsonb;
+declare
+  r      rooms%rowtype;
+  st     jsonb;
+  v_turn uuid;
 begin
-  select game_state into st from rooms where id = p_room_id for update;
+  select * into r from rooms where id = p_room_id for update;
+  if not found then raise exception '방을 찾을 수 없어요'; end if;
+  st := r.game_state;
   if st is null then raise exception '진행 중인 게임이 아니에요'; end if;
-  if _thrower(st) <> auth.uid() then raise exception '지금은 내 차례가 아니에요'; end if;
+  v_turn := _thrower(st);
+  if v_turn is distinct from auth.uid()
+     and not (v_turn = _ai_uid() and r.host = auth.uid()) then
+    raise exception '지금은 내 차례가 아니에요';
+  end if;
   if (p_state->>'ver')::int <= (st->>'ver')::int then raise exception '오래된 상태예요'; end if;
 
   update rooms
