@@ -164,7 +164,8 @@ begin
     return jsonb_build_object('room_id', r.id, 'code', r.code, 'status', r.status);
   end if;
 
-  if r.status <> 'waiting' then raise exception '이미 시작된 방이에요'; end if;
+  -- 진행 중인 게임에는 참가할 수 없음 (관전만 가능)
+  if r.status = 'playing' then raise exception '게임이 진행 중이라 관전만 할 수 있어요'; end if;
   if (select count(*) from players where room_id = r.id) >= 12 then
     raise exception '정원(12명)이 가득 찼어요';
   end if;
@@ -265,9 +266,13 @@ begin
   if auth.uid() is null then raise exception '로그인이 필요해요'; end if;
   if v_text = '' then return; end if;
 
+  -- 참가자 우선, 없으면 관전자(프로필 이름)로 허용
   select nickname into v_nick from players
    where room_id = p_room_id and user_id = auth.uid();
-  if v_nick is null then raise exception '방 참가자만 채팅할 수 있어요'; end if;
+  if v_nick is null then
+    select nickname into v_nick from profiles where id = auth.uid();
+  end if;
+  if v_nick is null or v_nick = '' then raise exception '먼저 이름을 정해 주세요'; end if;
 
   -- 도배 방지
   if exists (select 1 from messages
@@ -286,20 +291,97 @@ begin
 end $$;
 
 -- ---------- 방 나가기 ----------
+-- 게임 중에 나가면: 그 팀에 아무도 안 남으면 상대 팀 승리로 종료,
+--                  한 명이라도 남아 있으면 (2:1 처럼) 계속 진행.
 create or replace function public.leave_room(p_room_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
-declare r rooms%rowtype;
+declare
+  r       rooms%rowtype;
+  st      jsonb;
+  arr     jsonb;
+  ti      int;
+  n0      int;
+  n1      int;
+  was_turn boolean := false;
+  v_nick  text;
+  v_host  uuid;
 begin
-  select * into r from rooms where id = p_room_id;
+  select * into r from rooms where id = p_room_id for update;
   if not found then return; end if;
 
-  -- 대기 중에 방장이 나가면 방 자체를 닫음
-  if r.status = 'waiting' and r.host = auth.uid() then
-    delete from rooms where id = p_room_id;
+  -- 관전자는 참가자 목록에 없으므로 아무것도 바꾸지 않음
+  select nickname into v_nick from players
+   where room_id = p_room_id and user_id = auth.uid();
+  if v_nick is null then return; end if;
+
+  -- 대기 중: 방장이 나가면 방 자체를 닫음
+  if r.status = 'waiting' then
+    if r.host = auth.uid() then
+      delete from rooms where id = p_room_id;
+      return;
+    end if;
+    delete from players where room_id = p_room_id and user_id = auth.uid();
+    if not exists (select 1 from players where room_id = p_room_id) then
+      delete from rooms where id = p_room_id;
+    end if;
     return;
   end if;
 
+  -- 진행 중: 게임 상태에서 나간 사람을 빼고 승패/차례를 정리
+  st := r.game_state;
+  if r.status = 'playing' and st is not null then
+    was_turn := (_thrower(st) = auth.uid());
+
+    for ti in 0..1 loop
+      select coalesce(jsonb_agg(e.v), '[]'::jsonb) into arr
+        from jsonb_array_elements(st->'teams'->ti->'players') as e(v)
+       where e.v->>'uid' <> auth.uid()::text;
+      st := jsonb_set(st, array['teams', ti::text, 'players'], arr);
+    end loop;
+
+    n0 := jsonb_array_length(st->'teams'->0->'players');
+    n1 := jsonb_array_length(st->'teams'->1->'players');
+
+    st := jsonb_set(st, '{ver}', to_jsonb(coalesce((st->>'ver')::int, 1) + 1));
+    st := jsonb_set(st, '{ev}', jsonb_build_object(
+            'type','leave','by',auth.uid(),'name',v_nick,
+            'ended', (n0 = 0 or n1 = 0)));
+
+    if n0 = 0 or n1 = 0 then
+      -- 한 팀이 통째로 비었으면 상대 팀 승리로 종료
+      st := jsonb_set(st, '{winner}', to_jsonb(case when n0 = 0 then 1 else 0 end));
+      st := jsonb_set(st, '{winBy}', '"leave"'::jsonb);
+      st := jsonb_set(st, '{phase}', '"throw"'::jsonb);
+      st := jsonb_set(st, '{pending}', '[]'::jsonb);
+      update rooms set game_state = st, status = 'finished', updated_at = now()
+       where id = p_room_id;
+    else
+      -- 남은 사람들끼리 계속 진행
+      st := jsonb_set(st, '{teams,0,pIdx}', to_jsonb(least((st->'teams'->0->>'pIdx')::int, n0 - 1)));
+      st := jsonb_set(st, '{teams,1,pIdx}', to_jsonb(least((st->'teams'->1->>'pIdx')::int, n1 - 1)));
+      if was_turn then
+        -- 나간 사람 차례였다면 상대에게 넘김
+        st := jsonb_set(st, '{cur}',        to_jsonb(1 - (st->>'cur')::int));
+        st := jsonb_set(st, '{phase}',      '"throw"'::jsonb);
+        st := jsonb_set(st, '{throwsLeft}', '1'::jsonb);
+        st := jsonb_set(st, '{pending}',    '[]'::jsonb);
+        st := jsonb_set(st, '{sel}',        '0'::jsonb);
+      end if;
+      update rooms set game_state = st, updated_at = now() where id = p_room_id;
+    end if;
+  end if;
+
   delete from players where room_id = p_room_id and user_id = auth.uid();
+
+  -- 방장이 나갔으면 남은 사람 중 가장 먼저 들어온 사람이 방장을 이어받음
+  if r.host = auth.uid() then
+    select user_id into v_host from players
+     where room_id = p_room_id order by joined_at limit 1;
+    if v_host is not null then
+      update rooms set host = v_host where id = p_room_id;
+    end if;
+  end if;
+
   if not exists (select 1 from players where room_id = p_room_id) then
     delete from rooms where id = p_room_id;
   end if;
