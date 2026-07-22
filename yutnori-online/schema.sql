@@ -35,6 +35,8 @@ create table if not exists public.players (
   joined_at  timestamptz not null default now(),
   unique (room_id, user_id)
 );
+-- 같은 방에서 여러 판 놀 때의 전적 { "사용자id": 이긴횟수 }
+alter table public.rooms add column if not exists score jsonb not null default '{}'::jsonb;
 alter table public.players add column if not exists avatar text;
 -- role: player(놀이 참가) | spectator(관전). 관전자도 기록해야 대화를 볼 수 있다.
 alter table public.players add column if not exists role text not null default 'player';
@@ -289,6 +291,23 @@ begin
   return jsonb_build_object('faces', v_faces);
 end $$;
 
+-- ---------- 이긴 팀 사람들의 전적을 올린다 ----------
+create or replace function public._add_win(p_room_id uuid, st jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare w int; u text; cur jsonb;
+begin
+  if st is null or st->'winner' is null or st->'winner' = 'null'::jsonb then return; end if;
+  w := (st->>'winner')::int;
+  if w not in (0,1) then return; end if;
+  select coalesce(score,'{}'::jsonb) into cur from rooms where id = p_room_id;
+  for u in select e.value->>'uid' from jsonb_array_elements(st->'teams'->w->'players') e loop
+    if u is not null then
+      cur := jsonb_set(cur, array[u], to_jsonb(coalesce((cur->>u)::int,0) + 1), true);
+    end if;
+  end loop;
+  update rooms set score = cur where id = p_room_id;
+end $$;
+
 -- ---------- 상태 검증 ----------
 -- 클라이언트가 보낸 상태가 이전 상태에서 나올 수 있는 모양인지 확인한다.
 -- 이동 규칙 전체를 서버에서 다시 계산하지는 않지만,
@@ -355,6 +374,11 @@ begin
   end if;
   if (p_state->>'ver')::int <= (st->>'ver')::int then raise exception '오래된 상태예요'; end if;
   perform _check_state(st, p_state);
+
+  -- 승부가 처음 확정되는 순간에만 전적을 올린다
+  if p_state->'winner' <> 'null'::jsonb and r.status <> 'finished' then
+    perform _add_win(p_room_id, p_state);
+  end if;
 
   update rooms
      set game_state = p_state,
@@ -493,6 +517,7 @@ begin
       st := jsonb_set(st, '{winBy}', '"leave"'::jsonb);
       st := jsonb_set(st, '{phase}', '"throw"'::jsonb);
       st := jsonb_set(st, '{pending}', '[]'::jsonb);
+      perform _add_win(p_room_id, st);
       update rooms set game_state = st, status = 'finished', updated_at = now()
        where id = p_room_id;
     else

@@ -182,6 +182,12 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 }
 
 /* ---------- 내 계정 ---------- */
+#offBar{
+  display:none;align-items:center;gap:8px;
+  background:rgba(255,176,32,.14);border:1px solid var(--amber);color:#7A4A00;
+  border-radius:var(--r-md);padding:12px 13px;margin-bottom:12px;font-size:13.5px;font-weight:800;
+}
+#offBar.on{display:flex}
 #meCard{display:flex;align-items:center;gap:12px;padding:12px 13px;margin-bottom:16px}
 #acctName{font-weight:900;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #acctKind{font-size:12px;color:var(--ink-2);font-weight:700;margin-top:1px}
@@ -656,6 +662,14 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
 #winOverlay .dialog{text-align:center;max-width:420px}
 #winTrophy{font-size:76px;line-height:1.15}
 #winTitle{font-family:var(--font-display);font-size:40px;letter-spacing:-.5px;margin:6px 0 8px;line-height:1.1}
+#winScore{
+  display:none;flex-direction:column;gap:7px;margin:-6px 0 20px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:12px 13px;
+}
+#winScore.on{display:flex}
+#winScore .st{font-size:12px;font-weight:800;color:var(--ink-2);margin-bottom:2px}
+#winScore .row{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800}
+#winScore .row .w{margin-left:auto;color:var(--amber-d);font-family:var(--font-display);font-size:15px}
 #winSub{font-size:14.5px;color:var(--ink-2);margin-bottom:22px;font-weight:700;line-height:1.6}
 
 @media (max-width:360px){
@@ -679,6 +693,8 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
       <button id="soundBtn2" class="hBtn" aria-label="소리 켜기/끄기">🔊</button>
     </div>
   </header>
+
+  <div id="offBar">✈️ 인터넷에 연결되지 않았어요 — <b>혼자 연습</b>은 할 수 있어요</div>
 
   <section id="hero">
     <div id="heroInner">
@@ -972,6 +988,7 @@ details ul{margin:11px 0 2px 18px;font-size:13.5px;line-height:1.95;color:var(--
     <div id="winTrophy">🏆</div>
     <div id="winTitle"></div>
     <div id="winSub"></div>
+    <div id="winScore"></div>
     <button id="againBtn" class="primaryBtn">🎉 새 놀이 시작</button>
     <div class="hint" id="againMsg" style="display:none">방장이 새 놀이를 시작해요</div>
     <button id="winBackBtn" class="ghostBtn" style="display:none">🏠 대기방으로 돌아가기</button>
@@ -1306,7 +1323,7 @@ function buzz(p){if(soundOn&&navigator.vibrate)try{navigator.vibrate(p)}catch(e)
    그 파일이 우선한다. 예: VOICE['모']='./voice/mo.mp3' */
 const VOICE={};
 /* 화면에 뜨는 이름 → 실제로 외치는 말 */
-const CALL={'도':'도','개':'개','걸':'걸','윷':'윷이야','모':'모야','빽도':'빽도'};
+const CALL={'도':'도','개':'개','걸':'걸','윷':'윷이야, 한 번 더!','모':'모야, 한 번 더!','빽도':'아이고, 빽도'};
 const TTS=('speechSynthesis'in window)?window.speechSynthesis:null;
 let koVoice=null;
 function pickKoVoice(){
@@ -1795,7 +1812,7 @@ function applySpecial(dest,T,newHist){
       log(T.name+' 잉태! 대기하던 말 하나를 업었습니다.');
       fxBig('🤰','잉태! 새 말을 업었어요',sp.c);
       fxConf(dest,35,[T.color,'#3DDC84','#fff']);
-      fxSfx('good');buzz([30,40]);
+      fxSfx('good');fxSay('잉태');buzz([30,40]);
     }
   }else if(sp.t==='천국'){
     const E=S.teams[1-S.cur];
@@ -1811,12 +1828,12 @@ function applySpecial(dest,T,newHist){
     log(T.name+' 천국! 방(중앙)으로 순간이동!');
     fxBig('😇','천국! 방으로 순간이동',sp.c);
     fxConf(22,45,[T.color,'#FFB020','#fff']);
-    fxSfx('yut');buzz([30,40,60]);
+    fxSfx('yut');fxSay('천국');buzz([30,40,60]);
   }else if(sp.t==='지옥'){
     T.pieces.filter(p=>p.node===dest&&!p.done).forEach(p=>{p.node=null;p.hist=[];});
     log(T.name+' 지옥! 말이 처음으로 돌아갑니다…');
     fxBig('👿','지옥! 처음으로…',sp.c);
-    fxSfx('bad');buzz([80,60,80]);
+    fxSfx('bad');fxSay('지옥');buzz([80,60,80]);
   }
 }
 
@@ -1832,6 +1849,7 @@ function endTurn(){
 
 function showWinner(){
   if(winShown)return;winShown=true;
+  renderScore();
   bgmStop(0.5);
   const T=S.teams[S.winner];
   const byLeave=S.winBy==='leave';
@@ -2389,7 +2407,7 @@ function updateUI(){
   if(info&&info.avatar)setAvatarInto(tb,cp.uid,42);
   else tb.textContent=(cp&&cp.uid===AI_UID)?'🤖':teamIcon(S.cur);
 
-  if(mine&&!wasMyTurn&&!solo&&S.winner===null&&!spectating)sfx.myTurn();
+  if(mine&&!wasMyTurn&&!solo&&S.winner===null&&!spectating){sfx.myTurn();playVoice('차례예요');}
   wasMyTurn=mine;
   const ai=aiTurn();
   $('turnName').textContent=T.name+' · '+cName+(mine?' (나)':'');
@@ -2750,6 +2768,24 @@ function hardAdopt(st){
   showGameScreen();
   pendingLogs.length=0;
   adoptState(st);renderLog();updateUI();maybeWin();
+}
+/* 같은 방에서 여러 판 놀 때의 전적 */
+function renderScore(){
+  const box=$('winScore');box.innerHTML='';
+  const sc=(room&&room.score)||null;
+  const list=sc?Object.keys(sc).filter(u=>sc[u]>0):[];
+  if(!list.length){box.classList.remove('on');return;}
+  const t=document.createElement('div');t.className='st';t.textContent='📊 이 방 전적';
+  box.appendChild(t);
+  list.sort((a,b)=>sc[b]-sc[a]).slice(0,8).forEach(u=>{
+    const r=document.createElement('div');r.className='row';
+    r.appendChild(avatarEl(u,24));
+    const nm=document.createElement('span');
+    nm.textContent=((pMap[u]&&pMap[u].name)||'놀이꾼')+(u===myUid?' (나)':'');
+    const w=document.createElement('span');w.className='w';w.textContent=sc[u]+'승';
+    r.appendChild(nm);r.appendChild(w);box.appendChild(r);
+  });
+  box.classList.add('on');
 }
 function maybeWin(){if(S&&S.winner!==null&&!winShown)showWinner();}
 
@@ -3320,6 +3356,8 @@ function renderAcct(){
   setAvatarInto($('acctAv'),myUid,40);
   $('acctKind').textContent=isGuest?'게스트 · 이 기기에만 저장':'✅ '+(myLoginId||'로그인됨');
   $('authBtn').textContent=isGuest?'🔑 로그인 · 가입':'🚪 로그아웃';
+  $('authBtn').disabled=offline;
+  if(offline)$('acctKind').textContent='오프라인 · 이 기기에만 저장';
 }
 async function doLogout(){
   if(!confirm('로그아웃할까요?'))return;
@@ -3405,8 +3443,14 @@ $('profSave').addEventListener('click',async()=>{
   if(!nick){$('profMsg').textContent='이름을 입력해 주세요';return;}
   $('profSave').disabled=true;$('profMsg').className='errMsg';$('profMsg').textContent='저장 중…';
   try{
-    const {error}=await sb.rpc('save_profile',{p_nickname:nick,p_avatar:pendingAvatar});
-    if(error)throw error;
+    if(offline){
+      localStorage.setItem('yut_nick',nick);
+      if(pendingAvatar)localStorage.setItem('yut_avatar',pendingAvatar);
+      else localStorage.removeItem('yut_avatar');
+    }else{
+      const {error}=await sb.rpc('save_profile',{p_nickname:nick,p_avatar:pendingAvatar});
+      if(error)throw error;
+    }
     myProfile={nickname:nick,avatar:pendingAvatar};
     localStorage.setItem('yut_nick',nick);
     renderAcct();rebuildPMap();trackPresence();
@@ -3515,6 +3559,38 @@ $('createBtn').addEventListener('click',async()=>{
   $('createBtn').disabled=false;
 });
 
+/* ---------- 오프라인 모드 ----------
+   인터넷이 없을 때도 화면을 열어 '혼자 연습'은 할 수 있게 한다. */
+let offline=false;
+function goOffline(){
+  offline=true;
+  myUid='local';
+  myProfile={
+    nickname:localStorage.getItem('yut_nick')||'놀이꾼',
+    avatar:localStorage.getItem('yut_avatar')||null
+  };
+  soundOn=localStorage.getItem('yut_sound')!=='0';
+  applySound();
+  renderAcct();
+  localStorage.removeItem('yut_room');
+  showLobbyScreen();
+  $('offBar').classList.add('on');
+  $('createBtn').disabled=true;
+  $('openRooms').innerHTML='<div class="emptyBox"><span class="ee">✈️</span>인터넷에 연결되면<br>다른 사람과 함께 놀 수 있어요</div>';
+  $('onlineList').innerHTML='';
+  $('roomCount').textContent='';$('onCount').textContent='';
+  $('liveOn').textContent='-';$('liveRooms').textContent='-';
+}
+/* 다시 연결되면 새로 시작해 온라인 기능을 되살린다 */
+addEventListener('online',()=>{
+  if(offline&&!solo)location.reload();
+  else if(offline)miniToast('📡 인터넷이 돌아왔어요 — 연습을 마치면 새로고침해 주세요');
+});
+
+/* 오프라인에서도 화면이 뜨도록 앱 파일을 저장해 둔다 */
+if('serviceWorker' in navigator)
+  addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+
 /* ================= 부팅 ================= */
 (async function boot(){
   if(!CONF.SUPABASE_URL||!CONF.SUPABASE_ANON_KEY){
@@ -3536,6 +3612,8 @@ $('createBtn').addEventListener('click',async()=>{
       myUid=data.user.id;isGuest=true;
     }
   }catch(e){
+    // 인터넷이 끊겼다면 혼자 연습이라도 할 수 있게 열어 준다
+    if(!navigator.onLine){goOffline();return;}
     $('bootMsg').innerHTML='접속에 실패했어요: '+errMsg(e)+'<br>Supabase 대시보드에서 익명 로그인(Anonymous sign-ins)이 켜져 있는지 확인해 주세요.';
     return;
   }
