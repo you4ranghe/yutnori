@@ -396,6 +396,13 @@ header .sub{font-size:12px;color:var(--ink-2);line-height:1.35;font-weight:700}
 #chipsCard.choose{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,176,32,.26),var(--sh-card)}
 #chipsTitle{font-size:13.5px;font-weight:900;margin-bottom:10px}
 #chipsTitle .q{color:var(--amber-d)}
+.lg{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:800;margin-left:9px;white-space:nowrap;
+}
+.lg::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.lg.mint{color:var(--mint-d)}
+.lg.lav{color:#6B5BD6}
 #chips{display:flex;flex-wrap:wrap;gap:9px;min-height:30px;align-items:center}
 #chips .empty{font-size:13.5px;color:var(--ink-3);font-weight:700}
 .chip{
@@ -1739,9 +1746,12 @@ function drawBoard(now){
   if(S.phase==='select'){
     const chip=S.pending[S.sel];
     const phase=REDUCED?0:(now/380)%1;
+    const hv=hoverNode;
+    // 아무 곳도 가리키지 않았거나 출발칸을 가리켰으면 모든 길을 함께 보여 준다
+    const showAll=(hv===null||hv===undefined||hv==='PICK');
     for(const n of selectableNodes()){
       const p=NODE_POS[n];
-      const focused=(hoverNode===n||hoverNode===null||hoverNode===undefined);
+      const focused=showAll||hv===n;
       if(focused){
         const route=previewPath(n);
         dottedRoute(c,route,hexA('#3DDC84',.85),phase);
@@ -1766,9 +1776,22 @@ function drawBoard(now){
     }
     if(canEnter()){
       const both=pickAtStart();
+      // 새 말이 갈 길 — 판 위의 말(초록)과 구분되도록 연보라로
+      if(showAll||hv==='ENTER'||hv==='PICK'){
+        const r=computeDest(null,chip.steps);
+        const route=[0,...r.path.filter(n=>n!=='EXIT')];
+        dottedRoute(c,route,hexA('#B9AEFF',.95),phase);
+        const q=NODE_POS[r.dest];
+        if(q){
+          c.beginPath();c.arc(q.x,q.y,23,0,TAU);
+          c.setLineDash([7,6]);c.strokeStyle='#B9AEFF';c.lineWidth=3;c.stroke();c.setLineDash([]);
+          c.font='900 13px '+UI_FONT;c.fillStyle='#CFC6FF';
+          c.fillText('새 말',q.x,q.y+36);
+        }
+      }
       c.beginPath();c.arc(sp0.x,sp0.y,36+pulse,0,TAU);
-      c.setLineDash([8,7]);c.strokeStyle='#FFB020';c.lineWidth=3.5;c.stroke();c.setLineDash([]);
-      c.font='900 13px '+UI_FONT;c.fillStyle='#FFCF6B';
+      c.setLineDash([8,7]);c.strokeStyle='#B9AEFF';c.lineWidth=3.5;c.stroke();c.setLineDash([]);
+      c.font='900 13px '+UI_FONT;c.fillStyle='#CFC6FF';
       c.fillText(both?'눌러서 고르기':'새 말 놓기',sp0.x,sp0.y+52);
     }
   }
@@ -1971,9 +1994,11 @@ function updateUI(){
   const chipsCard=$('chipsCard'),chips=$('chips');
   const choosing=S.phase==='select'&&S.pending.length>1&&mine;
   chipsCard.classList.toggle('choose',choosing);
-  $('chipsTitle').innerHTML=choosing
+  const legend=(S.phase==='select'&&mine&&canEnter())
+    ?'<span class="lg mint">판 위 말</span><span class="lg lav">새 말</span>':'';
+  $('chipsTitle').innerHTML=(choosing
     ?'<span class="q">👇 어떤 것부터 쓸까요?</span> 눌러서 고르세요'
-    :(S.phase==='select'?'이 결과로 말을 옮겨요':'나온 결과');
+    :(S.phase==='select'?'이 결과로 말을 옮겨요':'나온 결과'))+legend;
   chips.innerHTML='';
   if(S.pending.length===0)chips.innerHTML='<span class="empty">윷을 던지면 여기에 결과가 나와요</span>';
   S.pending.forEach((p,i)=>{
