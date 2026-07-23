@@ -21,7 +21,8 @@ function head(src) { return src.slice(0, src.indexOf('/* 이동 규칙')); }
 
 /** 이름으로 함수 하나를 꺼낸다 (최상위 함수의 닫는 중괄호가 열 0 에 있다는 전제) */
 function fn(src, name) {
-  const at = src.indexOf('\nfunction ' + name + '(');
+  let at = src.indexOf('\nfunction ' + name + '(');
+  if (at < 0) at = src.indexOf('\nasync function ' + name + '(');
   if (at < 0) throw new Error('함수를 찾지 못했습니다: ' + name);
   const end = src.indexOf('\n}', at);
   if (end < 0) throw new Error('함수의 끝을 찾지 못했습니다: ' + name);

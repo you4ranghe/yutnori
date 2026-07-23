@@ -1711,13 +1711,20 @@ async function doThrow(){
   }
   whoosh();
   const [name,steps]=resultOf(faces);
+
+  // 결과를 상태에 바로 적용하고 곧장 전송한다 — 애니메이션을 기다리지 않으므로
+  // 상대도 거의 동시에 같은 윷을 보게 된다. 던지는 사람 화면은 busy 로 잠가
+  // 애니메이션이 끝날 때까지 새 칩이 미리 보이지 않게 한다.
+  S.throwsLeft--;
+  S.pending.push({name,steps});
+  if(steps>=4){S.throwsLeft++;log(name+'! 한 번 더 던집니다.');}
+  else log(name+(steps===-1?'! 뒤로 한 칸.':'! '+steps+'칸.'));
+  if(S.throwsLeft===0)enterSelect();
+  pushState({type:'throw',faces});
+
   playThrow(faces,name,steps,()=>{
-    S.busy=false;S.throwsLeft--;
-    S.pending.push({name,steps});
-    if(steps>=4){S.throwsLeft++;log(name+'! 한 번 더 던집니다.');}
-    else log(name+(steps===-1?'! 뒤로 한 칸.':'! '+steps+'칸.'));
-    if(S.throwsLeft===0)enterSelect();else updateUI();
-    pushState({type:'throw',faces});
+    S.busy=false;
+    updateUI();
   });
 }
 
@@ -2574,25 +2581,28 @@ function updateUI(){
   else
     btn.textContent='윷 던지기 🙌';
 
-  const chipsCard=$('chipsCard'),chips=$('chips');
-  const choosing=S.phase==='select'&&S.pending.length>1&&mine;
-  chipsCard.classList.toggle('choose',choosing);
-  const legend=(S.phase==='select'&&mine&&canEnter())
-    ?'<span class="lg lav">새 말</span>':'';
-  $('chipsTitle').innerHTML=(choosing
-    ?'<span class="q">👇 어떤 것부터 쓸까요?</span> 눌러서 고르세요'
-    :(S.phase==='select'?'이 결과로 말을 옮겨요':'나온 결과'))+legend;
-  chips.innerHTML='';
-  if(S.pending.length===0)chips.innerHTML='<span class="empty">윷을 던지면 여기에 결과가 나와요</span>';
-  S.pending.forEach((p,i)=>{
-    const b=document.createElement('button');
-    b.className='chip'+(S.phase==='select'&&i===S.sel?' sel':'');
-    b.innerHTML='<span class="ce">'+YUT_EMOJI[p.name]+'</span>'+p.name+
-      '<span class="cs">'+(p.steps===-1?'뒤로 1칸':p.steps+'칸')+'</span>';
-    b.disabled=S.phase!=='select'||!mine;
-    b.onclick=()=>{if(S.phase==='select'&&isMyTurn()){S.sel=i;buzz(10);updateUI();}};
-    chips.appendChild(b);
-  });
+  // 던지기 애니메이션 중에는 새 결과 칩을 미리 보여 주지 않는다 (애니메이션이 끝나면 나타남)
+  if(!S.busy){
+    const chipsCard=$('chipsCard'),chips=$('chips');
+    const choosing=S.phase==='select'&&S.pending.length>1&&mine;
+    chipsCard.classList.toggle('choose',choosing);
+    const legend=(S.phase==='select'&&mine&&canEnter())
+      ?'<span class="lg lav">새 말</span>':'';
+    $('chipsTitle').innerHTML=(choosing
+      ?'<span class="q">👇 어떤 것부터 쓸까요?</span> 눌러서 고르세요'
+      :(S.phase==='select'?'이 결과로 말을 옮겨요':'나온 결과'))+legend;
+    chips.innerHTML='';
+    if(S.pending.length===0)chips.innerHTML='<span class="empty">윷을 던지면 여기에 결과가 나와요</span>';
+    S.pending.forEach((p,i)=>{
+      const b=document.createElement('button');
+      b.className='chip'+(S.phase==='select'&&i===S.sel?' sel':'');
+      b.innerHTML='<span class="ce">'+YUT_EMOJI[p.name]+'</span>'+p.name+
+        '<span class="cs">'+(p.steps===-1?'뒤로 1칸':p.steps+'칸')+'</span>';
+      b.disabled=S.phase!=='select'||!mine;
+      b.onclick=()=>{if(S.phase==='select'&&isMyTurn()){S.sel=i;buzz(10);updateUI();}};
+      chips.appendChild(b);
+    });
+  }
   for(let ti=0;ti<2;ti++){
     const team=S.teams[ti],card=$('teamCard'+ti);
     card.style.setProperty('--tc',team.color);
@@ -2772,7 +2782,8 @@ function buildInitialState(rows,opts){
 }
 
 /* 서버로 보낼 상태 — 기록은 최근 6줄만 실어 전송량을 줄인다 */
-function wireState(){return Object.assign({},S,{logs:(S.logs||[]).slice(0,6)});}
+/* busy 는 던지는 사람 화면만의 상태 — 전송에는 담지 않는다 */
+function wireState(){return Object.assign({},S,{busy:false,logs:(S.logs||[]).slice(0,6)});}
 async function pushState(evBase){
   if(solo||!room||spectating){updateUI();fxRec.length=0;pendingLogs.length=0;return;}
   S.ver=(S.ver||1)+1;

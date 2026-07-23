@@ -44,6 +44,27 @@ section('화면 요소');
   badSel.length ? bad('없는 클래스: ' + badSel.join(', ')) : ok('셀렉터 클래스 확인');
 }
 
+/* ---------- 2.5 동기화 타이밍 ---------- */
+/* 던지기는 애니메이션(약 2.5초)을 기다리지 말고 곧장 전송해야 상대가 늦게 보지 않는다.
+   누군가 다시 애니메이션 뒤로 전송을 옮기면 여기서 잡는다. */
+section('동기화');
+{
+  const s = L.script();
+  const dt = L.fn(s, 'doThrow');
+  const iApply = dt.indexOf('S.pending.push(');
+  const iPush = dt.indexOf('pushState(');
+  const iPlay = dt.indexOf('playThrow(');
+  (iApply > 0 && iPush > iApply && iPlay > iPush)
+    ? ok('던지기: 상태적용 → 전송 → 애니메이션 (상대가 바로 받음)')
+    : bad('던지기 순서가 틀림 — 애니메이션 뒤에 전송하면 상대가 2.5초 늦게 봄');
+  /^\s*S\.(throwsLeft|pending|phase|teams|cur|winner)\s*=/m.test(L.fn(s, 'playThrow'))
+    ? bad('playThrow 가 게임 상태를 바꿈 — 애니메이션이 상태에 영향을 주면 안 됨')
+    : ok('playThrow 는 화면만 그림');
+  /busy:false/.test(L.fn(s, 'wireState'))
+    ? ok('전송 상태에서 busy 를 지워 상대 화면 오염 방지')
+    : bad('wireState 가 busy 를 그대로 보냄');
+}
+
 /* ---------- 3. 스키마 구조 ---------- */
 section('스키마');
 {
